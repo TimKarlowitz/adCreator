@@ -30,6 +30,19 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
   // Sort elements by zIndex
   const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
 
+  // Delete / Backspace removes selected element (unless a text input has focus)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      const { selectedId, removeElement } = useProjectStore.getState();
+      if (selectedId) removeElement(selectedId);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleStageClick = useCallback((e) => {
     if (e.target === e.target.getStage()) {
       setSelectedId(null);
@@ -68,8 +81,12 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
   const handleTransformEnd = useCallback((id, node) => {
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
-    const newWidth = Math.max(20, node.width() * scaleX) / scale;
-    const newHeight = Math.max(20, node.height() * scaleY) / scale;
+    // Use the stored element's design-space width/height as base — avoids Group.width() = 0 bug
+    const el = useProjectStore.getState().elements.find((e) => e.id === id);
+    const baseW = (node.width() > 0 ? node.width() : (el?.width ?? 100) * scale);
+    const baseH = (node.height() > 0 ? node.height() : (el?.height ?? 100) * scale);
+    const newWidth = Math.max(10, baseW * scaleX) / scale;
+    const newHeight = Math.max(10, baseH * scaleY) / scale;
     const newX = node.x() / scale;
     const newY = node.y() / scale;
 
@@ -98,7 +115,6 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
 
   const renderElement = (el) => {
     const props = {
-      key: el.id,
       element: el,
       scale,
       isSelected: selectedId === el.id,
@@ -110,10 +126,10 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
     };
 
     switch (el.type) {
-      case 'text':    return <TextElement {...props} />;
-      case 'textbox': return <TextBoxElement {...props} />;
-      case 'image':   return <ImageElement {...props} />;
-      case 'arrow':   return <ArrowElement {...props} />;
+      case 'text':    return <TextElement key={el.id} {...props} />;
+      case 'textbox': return <TextBoxElement key={el.id} {...props} />;
+      case 'image':   return <ImageElement key={el.id} {...props} />;
+      case 'arrow':   return <ArrowElement key={el.id} {...props} />;
       default:        return null;
     }
   };

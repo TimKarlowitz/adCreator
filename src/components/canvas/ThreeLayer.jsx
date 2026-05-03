@@ -80,12 +80,54 @@ function SceneLighting({ preset }) {
     studio: 'studio',
     outdoor: 'park',
     dramatic: 'night',
+    city: 'city',
+    dawn: 'dawn',
+    forest: 'forest',
+    lobby: 'lobby',
+    sunset: 'sunset',
+    warehouse: 'warehouse',
   };
   try {
     return <Environment preset={presetMap[preset] || 'studio'} />;
   } catch {
-    return <ambientLight intensity={1} />;
+    return null;
   }
+}
+
+function SceneLights({ lights = {} }) {
+  const {
+    ambientIntensity = 0.5, ambientColor = '#ffffff',
+    directionalIntensity = 1, directionalColor = '#ffffff',
+    directionalX = 5, directionalY = 5, directionalZ = 5,
+    pointEnabled = false, pointIntensity = 0.8, pointColor = '#ffffff',
+    pointX = -3, pointY = 3, pointZ = 2,
+    hemisphereEnabled = false, hemisphereSkyColor = '#4466ff',
+    hemisphereGroundColor = '#442200', hemisphereIntensity = 0.4,
+  } = lights;
+
+  return (
+    <>
+      <ambientLight intensity={ambientIntensity} color={ambientColor} />
+      <directionalLight
+        position={[directionalX, directionalY, directionalZ]}
+        intensity={directionalIntensity}
+        color={directionalColor}
+        castShadow
+      />
+      {pointEnabled && (
+        <pointLight
+          position={[pointX, pointY, pointZ]}
+          intensity={pointIntensity}
+          color={pointColor}
+        />
+      )}
+      {hemisphereEnabled && (
+        <hemisphereLight
+          args={[hemisphereSkyColor, hemisphereGroundColor, hemisphereIntensity]}
+        />
+      )}
+    </>
+  );
 }
 
 export default function ThreeLayer({ displayWidth, displayHeight }) {
@@ -102,8 +144,7 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
       camera={{ position: [0, 0, 5], fov: 50 }}
     >
       <color attach="background" args={[canvasConfig.backgroundColor]} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[5, 5, 5]} intensity={1} />
+      <SceneLights lights={model3d.lights} />
 
       <Suspense fallback={null}>
         <SceneLighting preset={model3d.lighting} />

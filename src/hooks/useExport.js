@@ -9,10 +9,16 @@ async function getFFmpeg() {
   const { toBlobURL } = await import('@ffmpeg/util');
   const ffmpeg = new FFmpeg();
 
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+  const coreBase = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+  // Serve worker.js from /public/ffmpeg/ so its relative imports (./const.js,
+  // ./errors.js) resolve correctly. Using a real URL also prevents webpack from
+  // bundling the worker, which is what caused the "Cannot find module blob:..."
+  // error — webpack would replace the worker path with a blob: URL, then fail
+  // when the worker's own import() tried to load that blob: URL.
   await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    classWorkerURL: new URL('/ffmpeg/worker.js', window.location.href).href,
+    coreURL: await toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm'),
   });
 
   ffmpegInstance = ffmpeg;

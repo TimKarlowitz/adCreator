@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node -e \"const fs=require('fs');['worker.js','const.js','errors.js'].forEach(f=>{fs.mkdirSync('public/ffmpeg',{recursive:true});fs.copyFileSync('node_modules/@ffmpeg/ffmpeg/dist/esm/'+f,'public/ffmpeg/'+f)})\""
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.0",

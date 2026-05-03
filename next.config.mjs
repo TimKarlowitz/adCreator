@@ -17,11 +17,16 @@ const nextConfig = {
   // node-canvas on some Next.js/Vercel build pipelines.
   transpilePackages: ['three'],
   turbopack: {},
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
       canvas: false,
     };
+    // Prevent webpack from trying to bundle @ffmpeg packages on the server.
+    // FFmpeg only runs in the browser via dynamic import() in useExport.
+    if (isServer) {
+      config.externals = [...(config.externals || []), '@ffmpeg/ffmpeg', '@ffmpeg/util', '@ffmpeg/core'];
+    }
     return config;
   },
 };

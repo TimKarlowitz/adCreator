@@ -68,7 +68,7 @@ export default function BottomBar({ onSaveTemplate, stageRef }) {
           onClick={onSaveTemplate}
           className="px-3 py-1 rounded bg-[#1a1a1a] hover:bg-[#2a2a2a] text-gray-300 hover:text-white transition-colors border border-[#333]"
         >
-          Save Template
+          Save Project
         </button>
       </div>
     </footer>

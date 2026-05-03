@@ -63,7 +63,7 @@ export default function LeftPanel() {
         align: 'left',
         spans: [],
       },
-      animation: { type: 'fade-in', startAt: 0, duration: 0.5 },
+      animation: { type: 'none', startAt: 0, duration: 0.5 },
     });
   };
 
@@ -90,7 +90,7 @@ export default function LeftPanel() {
         background: 'rgba(0,0,0,0.5)',
         borderRadius: 8,
       },
-      animation: { type: 'fade-in', startAt: 0.2, duration: 0.5 },
+      animation: { type: 'none', startAt: 0, duration: 0.5 },
     });
   };
 
@@ -106,7 +106,7 @@ export default function LeftPanel() {
       zIndex: 0,
       variant,
       style: { color: '#ffffff', strokeWidth: 3 },
-      animation: { type: 'fade-in', startAt: 0.3, duration: 0.4 },
+      animation: { type: 'none', startAt: 0, duration: 0.4 },
     });
   };
 
@@ -231,7 +231,9 @@ export default function LeftPanel() {
 
         {activeTab === 'bgs' && (
           <div>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Built-in Backgrounds</p>
+            <BgImageUploader setBackground={setBackground} uploadAsset={uploadAsset} />
+
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-3 mb-2">Built-in Backgrounds</p>
             <div className="grid grid-cols-2 gap-1">
               {BUILT_IN_BACKGROUNDS.map((bg) => (
                 <button
@@ -312,6 +314,42 @@ function SolidColorPicker() {
           setBackground({ type: 'color', src: null, assetId: null, opacity: 1, fit: 'cover' });
         }}
         className="w-full h-8 rounded cursor-pointer bg-transparent border border-[#333]"
+      />
+    </div>
+  );
+}
+
+function BgImageUploader({ setBackground, uploadAsset }) {
+  const inputRef = useRef();
+  const [preview, setPreview] = useState(null);
+
+  const handleFile = async (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const { id, objectUrl } = await uploadAsset(file);
+    setBackground({ type: 'image', src: objectUrl, assetId: id, opacity: 1, fit: 'cover' });
+    setPreview(objectUrl);
+  };
+
+  return (
+    <div className="mb-1">
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Upload Image</p>
+      <button
+        onClick={() => inputRef.current?.click()}
+        className="w-full flex items-center gap-2 px-3 py-2 rounded border border-dashed border-[#333] hover:border-indigo-500 text-gray-400 hover:text-indigo-400 text-xs transition-colors"
+      >
+        {preview ? (
+          <img src={preview} alt="bg" className="w-8 h-8 rounded object-cover" />
+        ) : (
+          <span className="w-8 h-8 rounded bg-[#2a2a2a] flex items-center justify-center text-base">🖼</span>
+        )}
+        <span>{preview ? 'Change background image' : 'Upload background image'}</span>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
       />
     </div>
   );

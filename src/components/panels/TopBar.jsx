@@ -4,7 +4,27 @@ import { useProjectStore } from '@/store/projectStore';
 
 const RATIOS = ['1:1', '16:9', '9:16'];
 
-export default function TopBar({ onExport, onTemplates }) {
+function SaveIndicator({ isSaving, lastSaved }) {
+  if (isSaving) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] text-gray-500">
+        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+        Saving…
+      </span>
+    );
+  }
+  if (lastSaved) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] text-gray-600">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
+        Saved
+      </span>
+    );
+  }
+  return null;
+}
+
+export default function TopBar({ onExport, onTemplates, onProjects, isSaving, lastSaved }) {
   const { canvasConfig, setAspectRatio, undo, redo, _past, _future } = useProjectStore();
 
   return (
@@ -67,6 +87,13 @@ export default function TopBar({ onExport, onTemplates }) {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        <SaveIndicator isSaving={isSaving} lastSaved={lastSaved} />
+        <button
+          onClick={onProjects}
+          className="px-3 py-1.5 rounded text-sm text-gray-300 hover:text-white hover:bg-[#2a2a2a] transition-colors"
+        >
+          Projects
+        </button>
         <button
           onClick={onTemplates}
           className="px-3 py-1.5 rounded text-sm text-gray-300 hover:text-white hover:bg-[#2a2a2a] transition-colors"

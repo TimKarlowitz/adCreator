@@ -4,6 +4,8 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import { useAssetStore } from '@/store/assetStore';
 import { useAspectRatio } from '@/hooks/useAspectRatio';
+import { useAutoSave } from '@/hooks/useAutoSave';
+import { getLastOpenedId, getProject, setLastOpenedId } from '@/lib/projectStorage';
 import TopBar from '@/components/panels/TopBar';
 import BottomBar from '@/components/panels/BottomBar';
 import LeftPanel from '@/components/panels/LeftPanel';
@@ -11,21 +13,48 @@ import RightPanel from '@/components/panels/RightPanel';
 import CanvasContainer from '@/components/canvas/CanvasContainer';
 import ExportModal from '@/components/modals/ExportModal';
 import TemplateModal from '@/components/modals/TemplateModal';
+import ProjectsModal from '@/components/modals/ProjectsModal';
 
 export default function Editor() {
   const stageRef = useRef();
   const threeCanvasRef = useRef();
   const [showExport, setShowExport] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showProjects, setShowProjects] = useState(false);
 
   const { loadAll } = useAssetStore();
-  const { zoom, canvasConfig, undo, redo } = useProjectStore();
+  const { zoom, canvasConfig, undo, redo, loadProject } = useProjectStore();
   const { displayWidth, displayHeight } = useAspectRatio(canvasConfig.aspectRatio);
+
+  // Thumbnail generator passed to auto-save
+  const getThumb = useCallback(() => {
+    try {
+      return stageRef.current?.toDataURL({ pixelRatio: 0.3 }) ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const { isSaving, lastSaved } = useAutoSave(getThumb);
 
   // Load assets from IndexedDB on startup
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // Restore the last opened project from IndexedDB on startup
+  useEffect(() => {
+    async function restore() {
+      const lastId = await getLastOpenedId();
+      if (!lastId) return;
+      const project = await getProject(lastId);
+      if (project) {
+        loadProject(project);
+      }
+    }
+    restore();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -46,9 +75,21 @@ export default function Editor() {
     }
   }, []);
 
+  // Called when a project is imported via JSON — load it and mark it last opened
+  const handleImport = useCallback(async (project) => {
+    loadProject(project);
+    await setLastOpenedId(project.id);
+  }, [loadProject]);
+
   return (
     <div className="flex flex-col h-screen bg-[#111] select-none">
-      <TopBar onExport={() => setShowExport(true)} onTemplates={() => setShowTemplates(true)} />
+      <TopBar
+        onExport={() => setShowExport(true)}
+        onTemplates={() => setShowTemplates(true)}
+        onProjects={() => setShowProjects(true)}
+        isSaving={isSaving}
+        lastSaved={lastSaved}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <LeftPanel />
@@ -77,7 +118,7 @@ export default function Editor() {
 
       <BottomBar
         stageRef={stageRef}
-        onSaveTemplate={() => setShowTemplates(true)}
+        onSaveTemplate={() => setShowProjects(true)}
       />
 
       {showExport && (
@@ -92,6 +133,14 @@ export default function Editor() {
         <TemplateModal
           onClose={() => setShowTemplates(false)}
           stageRef={stageRef}
+        />
+      )}
+
+      {showProjects && (
+        <ProjectsModal
+          onClose={() => setShowProjects(false)}
+          stageRef={stageRef}
+          onImport={handleImport}
         />
       )}
     </div>

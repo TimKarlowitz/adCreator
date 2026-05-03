@@ -47,6 +47,8 @@ export default function ArrowElement({
       id={element.id}
       x={x * scale}
       y={y * scale}
+      width={w}
+      height={h}
       rotation={rotation}
       draggable
       onClick={onSelect}
