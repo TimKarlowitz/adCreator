@@ -1,0 +1,29 @@
+{
+  "name": "ad-creator",
+  "version": "1.0.0",
+  "description": "Browser-based animated ad asset editor",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.0",
+    "@ffmpeg/util": "^0.12.0",
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.0.0",
+    "autoprefixer": "^10.4.20",
+    "idb": "^8.0.0",
+    "konva": "^9.3.0",
+    "next": "^15.0.0",
+    "postcss": "^8.4.47",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-konva": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "three": "^0.172.0",
+    "uuid": "^11.0.0",
+    "zustand": "^5.0.0"
+  }
+}
