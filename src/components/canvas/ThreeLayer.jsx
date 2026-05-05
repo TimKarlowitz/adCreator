@@ -192,8 +192,11 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
   const { background, model3d, exportConfig } = useProjectStore();
   const { blobUrls } = useAssetStore();
 
-  const bgSrc = background.src || (background.assetId ? blobUrls[background.assetId] : null);
-  const modelSrc = model3d.src || (model3d.assetId ? blobUrls[model3d.assetId] : null);
+  // Prefer fresh blob URL from assetStore (re-created from IndexedDB on each load)
+  // over background.src, which may be a stale blob URL from a previous session.
+  // Fall back to background.src for static/built-in assets that have no assetId.
+  const bgSrc = (background.assetId ? blobUrls[background.assetId] : null) || background.src;
+  const modelSrc = (model3d.assetId ? blobUrls[model3d.assetId] : null) || model3d.src;
 
   return (
     <Canvas

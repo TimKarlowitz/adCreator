@@ -9,14 +9,24 @@ import {
 
 const LAST_OPENED_KEY = 'lastOpenedProjectId';
 
+/** Strip a blob: URL from an object that also has an assetId.
+ *  Blob URLs are session-only; the asset is re-resolved from IndexedDB on load. */
+function stripBlobSrc(obj) {
+  if (!obj) return obj;
+  if (obj.assetId && obj.src && obj.src.startsWith('blob:')) {
+    return { ...obj, src: null };
+  }
+  return obj;
+}
+
 /** Pull only the fields that belong in a saved project (no UI state). */
 export function extractProjectData(state) {
   return {
     id: state.id,
     name: state.name,
     canvasConfig: state.canvasConfig,
-    background: state.background,
-    model3d: state.model3d,
+    background: stripBlobSrc(state.background),
+    model3d: stripBlobSrc(state.model3d),
     elements: state.elements,
     exportConfig: state.exportConfig,
   };
