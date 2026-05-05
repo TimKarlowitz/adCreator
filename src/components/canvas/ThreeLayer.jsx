@@ -43,7 +43,7 @@ function BackgroundImage({ src, scale = 1, offsetX = 0, offsetY = 0, opacity = 1
       textureRef.current = texture;
       if (meshRef.current) {
         meshRef.current.material.map = texture;
-        meshRef.current.material.opacity = opacity;
+        meshRef.current.material.color.setScalar(opacity);
         meshRef.current.material.needsUpdate = true;
       }
     });
@@ -55,16 +55,19 @@ function BackgroundImage({ src, scale = 1, offsetX = 0, offsetY = 0, opacity = 1
     meshRef.current.position.set(
       offsetX * viewport.width,
       offsetY * viewport.height,
-      -1,
+      -0.01,
     );
-    meshRef.current.material.opacity = opacity;
+    meshRef.current.material.color.setScalar(opacity);
     meshRef.current.material.needsUpdate = true;
   }, [scale, offsetX, offsetY, opacity, viewport.width, viewport.height]);
 
   return (
-    <mesh ref={meshRef} position={[0, 0, -1]} renderOrder={-1}>
+    <mesh ref={meshRef} position={[0, 0, -0.01]} renderOrder={-1}>
       <planeGeometry args={[viewport.width, viewport.height]} />
-      <meshBasicMaterial depthWrite={false} transparent opacity={opacity} />
+      {/* transparent={false} keeps this in the opaque render bucket so renderOrder={-1}
+          guarantees it draws before ANY model mesh — transparent materials always
+          render after opaque ones, making renderOrder ineffective for ordering against opaque model geometry. */}
+      <meshBasicMaterial depthWrite={false} />
     </mesh>
   );
 }
