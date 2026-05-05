@@ -132,6 +132,44 @@ export default function RightPanel() {
         </Section>
       )}
 
+      {/* Image tint */}
+      {selected.type === 'image' && (
+        <Section title="Image Style">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500 w-16">Tint</label>
+              <button
+                onClick={() => {
+                  const next = selected.style?.tintColor ? null : '#ffffff';
+                  updateElement(selectedId, { style: { ...selected.style, tintColor: next } });
+                }}
+                className={`px-3 py-1 rounded text-xs transition-colors border ${
+                  selected.style?.tintColor
+                    ? 'bg-indigo-600 border-indigo-500 text-white'
+                    : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:bg-[#2a2a2a]'
+                }`}
+              >
+                {selected.style?.tintColor ? 'On' : 'Off'}
+              </button>
+            </div>
+            {selected.style?.tintColor && (
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500 w-16">Color</label>
+                <input
+                  type="color"
+                  value={selected.style.tintColor}
+                  onChange={(e) =>
+                    updateElement(selectedId, { style: { ...selected.style, tintColor: e.target.value } })
+                  }
+                  className="w-8 h-7 rounded cursor-pointer border border-[#333] bg-transparent"
+                />
+                <span className="text-xs text-gray-400">{selected.style.tintColor}</span>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
       {/* Arrow style */}
       {selected.type === 'arrow' && (
         <Section title="Arrow Style">

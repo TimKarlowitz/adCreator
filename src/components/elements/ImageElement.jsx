@@ -15,10 +15,12 @@ export default function ImageElement({
   onTransformEnd,
   onContextMenu,
 }) {
-  const { x, y, width, height, rotation = 0, assetId, src, animation } = element;
+  const { x, y, width, height, rotation = 0, assetId, src, animation, style } = element;
   const { getObjectUrl } = useAssetStore();
   const [img, setImg] = useState(null);
+  const [displayImg, setDisplayImg] = useState(null);
   const animState = getAnimationState(animation, 0);
+  const tintColor = style?.tintColor;
 
   useEffect(() => {
     let mounted = true;
@@ -33,6 +35,26 @@ export default function ImageElement({
     loadImage();
     return () => { mounted = false; };
   }, [src, assetId, getObjectUrl]);
+
+  // Re-apply tint whenever the source image or tint color changes
+  useEffect(() => {
+    if (!img) { setDisplayImg(null); return; }
+    if (!tintColor) { setDisplayImg(img); return; }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    // Replace drawn pixels with tint color while preserving the alpha channel
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = tintColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const tinted = new window.Image();
+    tinted.src = canvas.toDataURL();
+    tinted.onload = () => setDisplayImg(tinted);
+  }, [img, tintColor]);
 
   return (
     <Group
@@ -53,9 +75,9 @@ export default function ImageElement({
       scaleX={animState.scaleX}
       scaleY={animState.scaleY}
     >
-      {img && (
+      {displayImg && (
         <KonvaImage
-          image={img}
+          image={displayImg}
           width={width * scale}
           height={height * scale}
         />
