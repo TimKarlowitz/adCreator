@@ -22,6 +22,9 @@ const defaultProject = () => ({
     src: null,
     opacity: 1,
     fit: 'cover',
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
   },
   model3d: {
     assetId: null,

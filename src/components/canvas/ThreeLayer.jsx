@@ -7,26 +7,64 @@ import * as THREE from 'three';
 import { useProjectStore } from '@/store/projectStore';
 import { useAssetStore } from '@/store/assetStore';
 
-function BackgroundImage({ src }) {
+function applyTextureCover(texture, viewportAR) {
+  const imageAR = texture.image.width / texture.image.height;
+  let repeatX, repeatY;
+  if (imageAR > viewportAR) {
+    repeatX = viewportAR / imageAR;
+    repeatY = 1;
+  } else {
+    repeatX = 1;
+    repeatY = imageAR / viewportAR;
+  }
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  texture.offset.set((1 - repeatX) / 2, (1 - repeatY) / 2);
+  texture.needsUpdate = true;
+}
+
+function BackgroundImage({ src, scale = 1, offsetX = 0, offsetY = 0, opacity = 1 }) {
   const { viewport } = useThree();
   const meshRef = useRef();
+  const textureRef = useRef(null);
+  const viewportARRef = useRef(viewport.width / viewport.height);
+
+  useEffect(() => {
+    viewportARRef.current = viewport.width / viewport.height;
+  }, [viewport.width, viewport.height]);
 
   useEffect(() => {
     if (!src) return;
     const loader = new THREE.TextureLoader();
     loader.crossOrigin = 'anonymous';
     loader.load(src, (texture) => {
+      applyTextureCover(texture, viewportARRef.current);
+      textureRef.current = texture;
       if (meshRef.current) {
         meshRef.current.material.map = texture;
+        meshRef.current.material.opacity = opacity;
         meshRef.current.material.needsUpdate = true;
       }
     });
   }, [src]);
 
+  useEffect(() => {
+    if (!meshRef.current) return;
+    meshRef.current.scale.set(scale, scale, 1);
+    meshRef.current.position.set(
+      offsetX * viewport.width,
+      offsetY * viewport.height,
+      -1,
+    );
+    meshRef.current.material.opacity = opacity;
+    meshRef.current.material.needsUpdate = true;
+  }, [scale, offsetX, offsetY, opacity, viewport.width, viewport.height]);
+
   return (
     <mesh ref={meshRef} position={[0, 0, -1]} renderOrder={-1}>
-      <planeGeometry args={[viewport.width * 10, viewport.height * 10]} />
-      <meshBasicMaterial depthWrite={false} />
+      <planeGeometry args={[viewport.width, viewport.height]} />
+      <meshBasicMaterial depthWrite={false} transparent opacity={opacity} />
     </mesh>
   );
 }
@@ -222,7 +260,13 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
         <SceneLighting preset={model3d.lighting} />
 
         {bgSrc && background.type === 'image' && (
-          <BackgroundImage src={bgSrc} />
+          <BackgroundImage
+            src={bgSrc}
+            scale={background.scale ?? 1}
+            offsetX={background.offsetX ?? 0}
+            offsetY={background.offsetY ?? 0}
+            opacity={background.opacity ?? 1}
+          />
         )}
 
         {modelSrc && (

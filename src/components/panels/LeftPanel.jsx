@@ -22,7 +22,7 @@ const BUILT_IN_ARROWS = [
 ];
 
 export default function LeftPanel() {
-  const { addElement, setBackground, setBackgroundColor, setModel3d, canvasConfig } = useProjectStore();
+  const { addElement, setBackground, setBackgroundColor, setModel3d, canvasConfig, background } = useProjectStore();
   const { assets, uploadAsset, removeAsset } = useAssetStore();
 
   const imageInputRef = useRef();
@@ -266,8 +266,12 @@ export default function LeftPanel() {
         </button>
 
         {showBgSection && (
-          <div className="px-2 pb-3 space-y-3 max-h-64 overflow-y-auto">
-            <BgImageUploader setBackground={setBackground} uploadAsset={uploadAsset} />
+          <div className="px-2 pb-3 space-y-3 max-h-[28rem] overflow-y-auto">
+            <BgImageUploader setBackground={setBackground} uploadAsset={uploadAsset} background={background} />
+
+            {background.type === 'image' && (
+              <BgAdjustControls background={background} setBackground={setBackground} />
+            )}
 
             <div>
               <p className="text-[9px] text-gray-600 uppercase tracking-wider mb-1.5">Presets</p>
@@ -275,7 +279,7 @@ export default function LeftPanel() {
                 {BUILT_IN_BACKGROUNDS.map((bg) => (
                   <button
                     key={bg.id}
-                    onClick={() => setBackground({ type: 'image', src: bg.src, assetId: null, opacity: 1, fit: 'cover' })}
+                    onClick={() => setBackground({ type: 'image', src: bg.src, assetId: null, opacity: 1, fit: 'cover', scale: 1, offsetX: 0, offsetY: 0 })}
                     title={bg.name}
                     className="aspect-video rounded overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-indigo-500 transition-all"
                   >
@@ -349,7 +353,7 @@ function SolidColorPicker({ setBackgroundColor, setBackground, canvasConfig }) {
   const PRESETS = ['#000000', '#0f0f0f', '#111827', '#1e1b4b', '#0c0a09', '#030712', '#1a0a2e', '#0a0a0a'];
   const applyColor = (c) => {
     setBackgroundColor(c);
-    setBackground({ type: 'color', src: null, assetId: null, opacity: 1, fit: 'cover' });
+    setBackground({ type: 'color', src: null, assetId: null, opacity: 1, fit: 'cover', scale: 1, offsetX: 0, offsetY: 0 });
   };
   return (
     <div>
@@ -374,15 +378,18 @@ function SolidColorPicker({ setBackgroundColor, setBackground, canvasConfig }) {
   );
 }
 
-function BgImageUploader({ setBackground, uploadAsset }) {
+function BgImageUploader({ setBackground, uploadAsset, background }) {
+  const { blobUrls } = useAssetStore();
   const inputRef = useRef();
-  const [preview, setPreview] = useState(null);
+
+  const preview = background.type === 'image'
+    ? ((background.assetId ? blobUrls[background.assetId] : null) || background.src)
+    : null;
 
   const handleFile = async (file) => {
     if (!file || !file.type.startsWith('image/')) return;
     const { id, objectUrl } = await uploadAsset(file);
-    setBackground({ type: 'image', src: objectUrl, assetId: id, opacity: 1, fit: 'cover' });
-    setPreview(objectUrl);
+    setBackground({ type: 'image', src: objectUrl, assetId: id, opacity: 1, fit: 'cover', scale: 1, offsetX: 0, offsetY: 0 });
   };
 
   return (
@@ -406,6 +413,85 @@ function BgImageUploader({ setBackground, uploadAsset }) {
         className="hidden"
         onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
       />
+    </div>
+  );
+}
+
+function BgAdjustControls({ background, setBackground }) {
+  const scale = background.scale ?? 1;
+  const offsetX = background.offsetX ?? 0;
+  const offsetY = background.offsetY ?? 0;
+  const opacity = background.opacity ?? 1;
+
+  const update = (patch) => setBackground({ ...background, ...patch });
+  const reset = () => setBackground({ ...background, scale: 1, offsetX: 0, offsetY: 0, opacity: 1 });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[9px] text-gray-600 uppercase tracking-wider">Adjust</p>
+        <button
+          onClick={reset}
+          className="text-[9px] text-gray-600 hover:text-indigo-400 transition-colors px-1"
+        >
+          Reset
+        </button>
+      </div>
+
+      <BgSlider
+        label="Zoom"
+        value={scale}
+        min={0.2}
+        max={4}
+        step={0.05}
+        display={`${scale.toFixed(2)}×`}
+        onChange={(v) => update({ scale: v })}
+      />
+      <BgSlider
+        label="Offset X"
+        value={offsetX}
+        min={-0.5}
+        max={0.5}
+        step={0.01}
+        display={offsetX >= 0 ? `+${offsetX.toFixed(2)}` : offsetX.toFixed(2)}
+        onChange={(v) => update({ offsetX: v })}
+      />
+      <BgSlider
+        label="Offset Y"
+        value={offsetY}
+        min={-0.5}
+        max={0.5}
+        step={0.01}
+        display={offsetY >= 0 ? `+${offsetY.toFixed(2)}` : offsetY.toFixed(2)}
+        onChange={(v) => update({ offsetY: v })}
+      />
+      <BgSlider
+        label="Opacity"
+        value={opacity}
+        min={0}
+        max={1}
+        step={0.01}
+        display={`${Math.round(opacity * 100)}%`}
+        onChange={(v) => update({ opacity: v })}
+      />
+    </div>
+  );
+}
+
+function BgSlider({ label, value, min, max, step, display, onChange }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[9px] text-gray-500 w-12 flex-shrink-0">{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="flex-1 h-1 accent-indigo-500 cursor-pointer"
+      />
+      <span className="text-[9px] text-gray-400 w-10 text-right flex-shrink-0">{display}</span>
     </div>
   );
 }
