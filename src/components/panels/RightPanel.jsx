@@ -303,7 +303,7 @@ function Model3dPanel({ model, onUpdate, exportConfig = {} }) {
           {/* Transform */}
           <div className="p-3 border-b border-[#2a2a2a] space-y-2">
             <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Transform</p>
-            <SliderRow label="Scale" min={0.1} max={40} step={0.1} value={model.scale}
+            <SliderRow label="Scale" min={0.1} max={60} step={0.1} value={model.scale}
               onChange={(v) => onUpdate({ scale: v })} fmt={(v) => v.toFixed(1)} />
             <SliderRow label="Pos X" min={0} max={1} step={0.01} value={model.position.x}
               onChange={(v) => onUpdate({ position: { ...model.position, x: v } })}
