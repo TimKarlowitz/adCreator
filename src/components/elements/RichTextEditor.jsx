@@ -32,6 +32,10 @@ export function parseEditorToRichContent(rootEl) {
     const r = {};
     let el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
     while (el && el !== rootEl) {
+      // <font color="..."> is what execCommand produces without styleWithCSS
+      if (el.tagName === 'FONT' && !('color' in r) && el.getAttribute('color')) {
+        r.color = el.getAttribute('color');
+      }
       if (el.style) {
         if (!('color' in r) && el.style.color) r.color = el.style.color;
         if (!('bold' in r) && el.style.fontWeight) {
@@ -106,17 +110,97 @@ function normaliseColor(c) {
   return c;
 }
 
+// ── Color presets ─────────────────────────────────────────────────────────────
+
+const COLOR_PRESETS = [
+  '#ffffff', '#cccccc', '#888888', '#444444', '#000000',
+  '#ff4444', '#ff8800', '#ffcc00', '#88cc00', '#00cc44',
+  '#00cccc', '#0088ff', '#4444ff', '#8800ff', '#ff00cc',
+  '#ff8888', '#ffcc88', '#ffffaa', '#aaffcc', '#aaddff',
+];
+
+// ── Custom colour picker (no OS native dialog → selection never lost) ─────────
+
+function ColorPicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [hex, setHex] = useState(value || '#ffffff');
+
+  // Keep hex input in sync when value changes externally
+  useEffect(() => { setHex(normaliseColor(value)); }, [value]);
+
+  const pick = (c) => {
+    onChange(c);
+    setHex(c);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative flex-shrink-0">
+      {/* Swatch button */}
+      <button
+        title="Text color"
+        className="w-6 h-6 rounded border border-[#555] flex-shrink-0"
+        style={{ background: normaliseColor(value) }}
+        onMouseDown={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+      />
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          className="absolute top-8 left-0 z-[200] bg-[#1e1e1e] border border-[#444] rounded-xl p-2 shadow-2xl w-[142px]"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {/* Preset grid */}
+          <div className="grid grid-cols-5 gap-1 mb-2">
+            {COLOR_PRESETS.map((c) => (
+              <button
+                key={c}
+                className="w-5 h-5 rounded hover:scale-110 transition-transform"
+                style={{
+                  background: c,
+                  outline: normaliseColor(value) === c ? '2px solid white' : 'none',
+                  outlineOffset: 1,
+                }}
+                onMouseDown={(e) => { e.preventDefault(); pick(c); }}
+              />
+            ))}
+          </div>
+
+          {/* Hex input */}
+          <div className="flex gap-1 items-center">
+            <div
+              className="w-5 h-5 rounded border border-[#555] flex-shrink-0"
+              style={{ background: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#888' }}
+            />
+            <input
+              type="text"
+              value={hex}
+              onChange={(e) => setHex(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const v = hex.trim();
+                  if (/^#[0-9a-fA-F]{6}$/.test(v)) pick(v);
+                }
+                if (e.key === 'Escape') setOpen(false);
+              }}
+              placeholder="#rrggbb"
+              maxLength={7}
+              className="flex-1 min-w-0 bg-[#111] border border-[#333] rounded px-1 py-0.5 text-[10px] text-gray-300 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+          <p className="text-[9px] text-gray-600 mt-1">Press Enter to apply hex</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Named export so TextElement can reuse it ─────────────────────────────────
+export { ColorPicker };
+
 // ── Component ────────────────────────────────────────────────────────────────
 
-/**
- * RichTextEditor
- *
- * Props:
- *   richContent   – Segment[]  current value
- *   defaultStyle  – { fontFamily, fontSize, color, bold, align }
- *   onChange      – (Segment[]) => void
- *   placeholder   – string
- */
 export default function RichTextEditor({
   richContent,
   defaultStyle = {},
@@ -125,6 +209,7 @@ export default function RichTextEditor({
 }) {
   const editorRef = useRef(null);
   const ignoreInputRef = useRef(false);
+  const savedRangeRef = useRef(null); // persists selection across toolbar interactions
 
   const [showToolbar, setShowToolbar] = useState(false);
   const [toolbarPos, setToolbarPos] = useState({ top: 0, left: 0 });
@@ -132,7 +217,8 @@ export default function RichTextEditor({
   const [activeItalic, setActiveItalic] = useState(false);
   const [activeColor, setActiveColor] = useState(defaultStyle.color || '#ffffff');
 
-  // Initialise HTML once on mount
+  // ── Initialise ───────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!editorRef.current) return;
     ignoreInputRef.current = true;
@@ -141,8 +227,6 @@ export default function RichTextEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep in sync when richContent changes externally (e.g. undo/redo)
-  // but only if editor is not focused to avoid cursor jumps
   const lastExternal = useRef(JSON.stringify(richContent));
   useEffect(() => {
     const next = JSON.stringify(richContent);
@@ -155,6 +239,8 @@ export default function RichTextEditor({
     ignoreInputRef.current = false;
   }, [richContent]);
 
+  // ── Change emission ──────────────────────────────────────────────────────
+
   const emitChange = useCallback(() => {
     if (!editorRef.current || ignoreInputRef.current) return;
     const segs = parseEditorToRichContent(editorRef.current);
@@ -165,6 +251,24 @@ export default function RichTextEditor({
     }
   }, [onChange]);
 
+  // ── Selection save / restore ─────────────────────────────────────────────
+
+  const saveSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    }
+  }, []);
+
+  const restoreSelection = useCallback(() => {
+    editorRef.current?.focus();
+    if (savedRangeRef.current) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(savedRangeRef.current);
+    }
+  }, []);
+
   // ── Selection-based toolbar ──────────────────────────────────────────────
 
   const updateToolbar = useCallback(() => {
@@ -173,6 +277,9 @@ export default function RichTextEditor({
       setShowToolbar(false);
       return;
     }
+
+    // Persist the range so toolbar actions can restore it
+    savedRangeRef.current = sel.getRangeAt(0).cloneRange();
 
     const range = sel.getRangeAt(0);
     const rRect = range.getBoundingClientRect();
@@ -183,7 +290,6 @@ export default function RichTextEditor({
     });
     setShowToolbar(true);
 
-    // Detect active styles from anchor node
     const el = sel.anchorNode?.parentElement;
     if (el) {
       const cs = window.getComputedStyle(el);
@@ -201,13 +307,13 @@ export default function RichTextEditor({
 
   // ── Formatting commands ──────────────────────────────────────────────────
 
+  // All formatting goes through this: restore selection → enable styleWithCSS → run → emit
   const applyFormat = useCallback((fn) => {
-    // styleWithCSS makes execCommand produce <span style="..."> instead of <b>/<font>
+    restoreSelection();
     document.execCommand('styleWithCSS', false, true);
     fn();
     emitChange();
-    editorRef.current?.focus();
-  }, [emitChange]);
+  }, [restoreSelection, emitChange]);
 
   const toggleBold = () =>
     applyFormat(() => {
@@ -221,22 +327,24 @@ export default function RichTextEditor({
       setActiveItalic((v) => !v);
     });
 
-  const applyColor = (color) =>
+  // Called by the custom ColorPicker (never triggers OS dialog → selection safe)
+  const applyColor = useCallback((color) => {
     applyFormat(() => {
       document.execCommand('foreColor', false, color);
       setActiveColor(color);
     });
+  }, [applyFormat]);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="relative">
-      {/* Floating mini-toolbar (shown when text is selected) */}
+      {/* Floating mini-toolbar */}
       {showToolbar && (
         <div
-          className="absolute z-50 flex items-center gap-1 bg-[#222] border border-[#444] rounded-lg px-2 py-1 shadow-xl pointer-events-auto"
+          className="absolute z-50 flex items-center gap-1 bg-[#222] border border-[#444] rounded-lg px-2 py-1.5 shadow-xl"
           style={{ top: toolbarPos.top, left: toolbarPos.left }}
-          onMouseDown={(e) => e.preventDefault()} // keep selection alive
+          onMouseDown={(e) => { saveSelection(); e.preventDefault(); }}
         >
           <ToolBtn active={activeBold} onClick={toggleBold} title="Bold">
             <span className="font-bold text-sm leading-none">B</span>
@@ -245,22 +353,11 @@ export default function RichTextEditor({
             <span className="italic text-sm leading-none">I</span>
           </ToolBtn>
           <div className="w-px h-4 bg-[#444] mx-0.5" />
-          <label
-            className="w-6 h-6 rounded overflow-hidden cursor-pointer border border-[#555] flex-shrink-0"
-            title="Text color"
-            style={{ background: activeColor }}
-          >
-            <input
-              type="color"
-              value={activeColor.startsWith('#') ? activeColor : '#ffffff'}
-              onChange={(e) => applyColor(e.target.value)}
-              className="opacity-0 w-0 h-0 absolute"
-            />
-          </label>
+          <ColorPicker value={activeColor} onChange={applyColor} />
         </div>
       )}
 
-      {/* Contenteditable editor */}
+      {/* Contenteditable */}
       <div
         ref={editorRef}
         contentEditable
@@ -282,17 +379,11 @@ export default function RichTextEditor({
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}
-        className={`
-          w-full bg-[#1a1a1a] border border-[#333] rounded px-2 py-2
-          text-sm focus:outline-none focus:border-indigo-500
-          empty:before:content-[attr(data-placeholder)]
-          empty:before:text-gray-600 empty:before:pointer-events-none
-        `}
+        className="w-full bg-[#1a1a1a] border border-[#333] rounded px-2 py-2 text-sm focus:outline-none focus:border-indigo-500 empty:before:content-[attr(data-placeholder)] empty:before:text-gray-600 empty:before:pointer-events-none"
       />
 
-      {/* Hint */}
       <p className="text-[10px] text-gray-600 mt-1">
-        Select text to change color, bold, or italic
+        Select text → choose color, bold, or italic
       </p>
     </div>
   );
@@ -301,6 +392,7 @@ export default function RichTextEditor({
 function ToolBtn({ active, onClick, title, children }) {
   return (
     <button
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       title={title}
       className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
