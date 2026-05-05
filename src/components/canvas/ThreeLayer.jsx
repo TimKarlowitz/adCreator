@@ -31,48 +31,101 @@ function BackgroundImage({ src }) {
   );
 }
 
-function RotatingModel({ src, position, scale, rotationSpeed, autoRotate }) {
-  const groupRef = useRef();
-  const { viewport } = useThree();
-  const sceneRef = useRef(null);
+function RotatingModel({
+  src, position, scale, rotationSpeed, autoRotate,
+  rotationAxisX = 0, rotationAxisY = 1, rotationAxisZ = 0,
+  pivotX = 0, pivotY = 0, pivotZ = 0,
+}) {
+  const rotatingGroupRef = useRef();
+  const modelGroupRef = useRef();
+  const { viewport, camera } = useThree();
+  const axisVec = useRef(new THREE.Vector3(0, 1, 0));
+  const modelRadiusRef = useRef(1);
 
-  // Dynamically load GLTF to avoid static import issues
+  // Recompute camera clipping planes whenever scale changes so rotating
+  // parts of large models never get culled by the near or far plane.
+  useEffect(() => {
+    const effectiveRadius = modelRadiusRef.current * (typeof scale === 'number' ? scale : 1);
+    if (effectiveRadius <= 0) return;
+
+    // Pull the camera back far enough that the entire model stays in front of it
+    const requiredDist = effectiveRadius * 2.5;
+    if (camera.position.z < requiredDist) {
+      camera.position.z = requiredDist;
+    }
+
+    camera.near = Math.max(0.001, camera.position.z - effectiveRadius * 1.2);
+    camera.far = camera.position.z + effectiveRadius * 1.2 + 100;
+    camera.updateProjectionMatrix();
+  }, [scale, camera]);
+
   useEffect(() => {
     if (!src) return;
-    let objectUrl = src;
-    let revoke = false;
 
     import('three/addons/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
       const loader = new GLTFLoader();
-      loader.load(objectUrl, (gltf) => {
-        sceneRef.current = gltf.scene;
-        if (groupRef.current) {
-          // Clear existing children
-          while (groupRef.current.children.length) {
-            groupRef.current.remove(groupRef.current.children[0]);
-          }
-          groupRef.current.add(gltf.scene);
+      loader.load(src, (gltf) => {
+        if (!modelGroupRef.current) return;
+
+        // Clear previous model
+        while (modelGroupRef.current.children.length) {
+          modelGroupRef.current.remove(modelGroupRef.current.children[0]);
         }
+
+        // Auto-center: shift the scene so its bounding-box center sits at the origin
+        const scene = gltf.scene;
+        const box = new THREE.Box3().setFromObject(scene);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        scene.position.sub(center);
+
+        modelGroupRef.current.add(scene);
+
+        // Store the model's unscaled bounding-sphere radius so the clipping
+        // planes can be updated correctly whenever scale changes.
+        const sphere = new THREE.Sphere();
+        box.getBoundingSphere(sphere);
+        modelRadiusRef.current = sphere.radius;
+
+        const effectiveRadius = sphere.radius * (typeof scale === 'number' ? scale : 1);
+        const requiredDist = effectiveRadius * 2.5;
+        if (camera.position.z < requiredDist) {
+          camera.position.z = requiredDist;
+        }
+        camera.near = Math.max(0.001, camera.position.z - effectiveRadius * 1.2);
+        camera.far = camera.position.z + effectiveRadius * 1.2 + 100;
+        camera.updateProjectionMatrix();
       }, undefined, (err) => {
         console.warn('GLTF load error:', err);
       });
     });
-
-    return () => {
-      if (revoke) URL.revokeObjectURL(objectUrl);
-    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
   useFrame((_, delta) => {
-    if (groupRef.current && autoRotate) {
-      groupRef.current.rotation.y += rotationSpeed * delta;
+    if (rotatingGroupRef.current && autoRotate) {
+      axisVec.current.set(rotationAxisX, rotationAxisY, rotationAxisZ);
+      const len = axisVec.current.length();
+      if (len > 0) {
+        axisVec.current.divideScalar(len);
+        rotatingGroupRef.current.rotateOnAxis(axisVec.current, rotationSpeed * delta);
+      }
     }
   });
 
   const posX = (position.x - 0.5) * viewport.width;
   const posY = (0.5 - position.y) * viewport.height;
 
-  return <group ref={groupRef} position={[posX, posY, 0]} scale={scale} />;
+  return (
+    // Outer group: canvas position + scale
+    <group position={[posX, posY, 0]} scale={scale}>
+      {/* Rotating group: the pivot is its origin; the model is offset inside */}
+      <group ref={rotatingGroupRef}>
+        {/* Model group: placed at negative pivot so pivot becomes the rotation center */}
+        <group ref={modelGroupRef} position={[-pivotX, -pivotY, -pivotZ]} />
+      </group>
+    </group>
+  );
 }
 
 function SceneLighting({ preset }) {
@@ -131,7 +184,7 @@ function SceneLights({ lights = {} }) {
 }
 
 export default function ThreeLayer({ displayWidth, displayHeight }) {
-  const { background, model3d, canvasConfig } = useProjectStore();
+  const { background, model3d } = useProjectStore();
   const { blobUrls } = useAssetStore();
 
   const bgSrc = background.src || (background.assetId ? blobUrls[background.assetId] : null);
@@ -140,10 +193,9 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
   return (
     <Canvas
       style={{ width: displayWidth, height: displayHeight, display: 'block' }}
-      gl={{ preserveDrawingBuffer: true, antialias: true }}
+      gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
       camera={{ position: [0, 0, 5], fov: 50 }}
     >
-      <color attach="background" args={[canvasConfig.backgroundColor]} />
       <SceneLights lights={model3d.lights} />
 
       <Suspense fallback={null}>
@@ -160,6 +212,12 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
             scale={model3d.scale}
             rotationSpeed={model3d.rotationSpeed}
             autoRotate={model3d.autoRotate}
+            rotationAxisX={model3d.rotationAxisX ?? 0}
+            rotationAxisY={model3d.rotationAxisY ?? 1}
+            rotationAxisZ={model3d.rotationAxisZ ?? 0}
+            pivotX={model3d.pivotX ?? 0}
+            pivotY={model3d.pivotY ?? 0}
+            pivotZ={model3d.pivotZ ?? 0}
           />
         )}
       </Suspense>

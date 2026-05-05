@@ -28,7 +28,7 @@ export default function TextBoxElement({
   } = element;
 
   const {
-    fontFamily = 'sans-serif',
+    fontFamily = 'Geist',
     fontSize = 20,
     color = '#ffffff',
     bold = false,

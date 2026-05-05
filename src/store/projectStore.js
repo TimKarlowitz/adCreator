@@ -26,10 +26,17 @@ const defaultProject = () => ({
   model3d: {
     assetId: null,
     src: null,
+    zIndex: -1,
     position: { x: 0.65, y: 0.5 },
     scale: 1.2,
     rotationSpeed: 0.8,
     autoRotate: true,
+    rotationAxisX: 0,
+    rotationAxisY: 1,
+    rotationAxisZ: 0,
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
     lighting: 'studio',
     lights: {
       ambientIntensity: 0.5,
@@ -67,6 +74,23 @@ function snapshot(state) {
     model3d: state.model3d,
     canvasConfig: state.canvasConfig,
   };
+}
+
+/**
+ * Build the unified sorted stack: all elements + model3d ordered by zIndex.
+ * Ties are broken by putting model3d below elements (model3d sorts earlier).
+ */
+export function getAllItemsSorted(elements, model3d) {
+  const m3dZ = model3d?.zIndex ?? -1;
+  const items = [
+    ...elements.map((el) => ({ kind: 'element', id: el.id, zIndex: el.zIndex })),
+    { kind: 'model3d', id: '__model3d__', zIndex: m3dZ },
+  ];
+  return items.sort((a, b) =>
+    a.zIndex !== b.zIndex
+      ? a.zIndex - b.zIndex
+      : a.kind === 'model3d' ? -1 : 1
+  );
 }
 
 export const useProjectStore = create((set, get) => ({
@@ -163,27 +187,55 @@ export const useProjectStore = create((set, get) => ({
     set({ elements: [...s.elements, newEl], selectedId: newEl.id });
   },
 
-  bringForward: (id) => set((s) => {
-    const sorted = [...s.elements].sort((a, b) => a.zIndex - b.zIndex);
-    const idx = sorted.findIndex((e) => e.id === id);
-    if (idx < sorted.length - 1) {
-      const [a, b] = [sorted[idx].zIndex, sorted[idx + 1].zIndex];
-      sorted[idx] = { ...sorted[idx], zIndex: b };
-      sorted[idx + 1] = { ...sorted[idx + 1], zIndex: a };
-    }
-    return { elements: sorted };
-  }),
+  // Unified bring forward — works for both elements and model3d (__model3d__ id).
+  bringForward: (id) => {
+    const s = get();
+    const all = getAllItemsSorted(s.elements, s.model3d);
+    const idx = all.findIndex((item) => item.id === id);
+    if (idx >= all.length - 1) return;
+    s._record();
+    const zA = all[idx].zIndex;
+    const zB = all[idx + 1].zIndex;
+    const idA = all[idx].id;
+    const idB = all[idx + 1].id;
+    set((cur) => ({
+      elements: cur.elements.map((el) => {
+        if (el.id === idA) return { ...el, zIndex: zB };
+        if (el.id === idB) return { ...el, zIndex: zA };
+        return el;
+      }),
+      model3d: idA === '__model3d__'
+        ? { ...cur.model3d, zIndex: zB }
+        : idB === '__model3d__'
+        ? { ...cur.model3d, zIndex: zA }
+        : cur.model3d,
+    }));
+  },
 
-  sendBackward: (id) => set((s) => {
-    const sorted = [...s.elements].sort((a, b) => a.zIndex - b.zIndex);
-    const idx = sorted.findIndex((e) => e.id === id);
-    if (idx > 0) {
-      const [a, b] = [sorted[idx].zIndex, sorted[idx - 1].zIndex];
-      sorted[idx] = { ...sorted[idx], zIndex: b };
-      sorted[idx - 1] = { ...sorted[idx - 1], zIndex: a };
-    }
-    return { elements: sorted };
-  }),
+  // Unified send backward — works for both elements and model3d (__model3d__ id).
+  sendBackward: (id) => {
+    const s = get();
+    const all = getAllItemsSorted(s.elements, s.model3d);
+    const idx = all.findIndex((item) => item.id === id);
+    if (idx <= 0) return;
+    s._record();
+    const zA = all[idx].zIndex;
+    const zB = all[idx - 1].zIndex;
+    const idA = all[idx].id;
+    const idB = all[idx - 1].id;
+    set((cur) => ({
+      elements: cur.elements.map((el) => {
+        if (el.id === idA) return { ...el, zIndex: zB };
+        if (el.id === idB) return { ...el, zIndex: zA };
+        return el;
+      }),
+      model3d: idA === '__model3d__'
+        ? { ...cur.model3d, zIndex: zB }
+        : idB === '__model3d__'
+        ? { ...cur.model3d, zIndex: zA }
+        : cur.model3d,
+    }));
+  },
 
   // ---- Selection ----
   setSelectedId: (id) => set({ selectedId: id }),

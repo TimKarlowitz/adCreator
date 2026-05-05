@@ -10,9 +10,27 @@ import ImageElement from '@/components/elements/ImageElement';
 import ArrowElement from '@/components/elements/ArrowElement';
 import SelectionTransformer from '@/components/elements/SelectionTransformer';
 
-export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scale }) {
+/**
+ * KonvaLayer renders a set of canvas elements on a Konva Stage.
+ *
+ * Props:
+ *   stageRef      – ref attached to the Konva Stage (required for interactive layer)
+ *   displayWidth  – px width of the stage
+ *   displayHeight – px height of the stage
+ *   scale         – design-space to display-space scale factor
+ *   elements      – array of elements to render (overrides store)
+ *   interactive   – when false, renders read-only (no drag/select/context-menu)
+ */
+export default function KonvaLayer({
+  stageRef,
+  displayWidth,
+  displayHeight,
+  scale,
+  elements: elementsProp,
+  interactive = true,
+}) {
   const {
-    elements,
+    elements: storeElements,
     selectedId,
     setSelectedId,
     updateElement,
@@ -23,6 +41,8 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
     sendBackward,
   } = useProjectStore();
 
+  const elements = elementsProp ?? storeElements;
+
   const [snapGuides, setSnapGuides] = useState([]);
   const [contextMenu, setContextMenu] = useState(null);
   const { snap } = useSnap(canvasConfig.baseWidth, canvasConfig.baseHeight);
@@ -32,6 +52,7 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
 
   // Delete / Backspace removes selected element (unless a text input has focus)
   useEffect(() => {
+    if (!interactive) return;
     const handleKeyDown = (e) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const tag = document.activeElement?.tagName;
@@ -41,7 +62,7 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [interactive]);
 
   const handleStageClick = useCallback((e) => {
     if (e.target === e.target.getStage()) {
@@ -54,7 +75,6 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
     const el = elements.find((el) => el.id === id);
     if (!el) return;
 
-    // Convert display coords to design coords
     const designX = e.target.x() / scale;
     const designY = e.target.y() / scale;
 
@@ -64,7 +84,6 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
       elements
     );
 
-    // Apply snap in display coords
     e.target.x(snappedX * scale);
     e.target.y(snappedY * scale);
 
@@ -81,7 +100,6 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
   const handleTransformEnd = useCallback((id, node) => {
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
-    // Use the stored element's design-space width/height as base — avoids Group.width() = 0 bug
     const el = useProjectStore.getState().elements.find((e) => e.id === id);
     const baseW = (node.width() > 0 ? node.width() : (el?.width ?? 100) * scale);
     const baseH = (node.height() > 0 ? node.height() : (el?.height ?? 100) * scale);
@@ -108,12 +126,34 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
 
   // Close context menu on outside click
   useEffect(() => {
+    if (!interactive) return;
     const close = () => setContextMenu(null);
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
-  }, []);
+  }, [interactive]);
 
   const renderElement = (el) => {
+    if (!interactive) {
+      // Read-only: render without any event handlers
+      const props = {
+        element: el,
+        scale,
+        isSelected: false,
+        onSelect: () => {},
+        onDragMove: () => {},
+        onDragEnd: () => {},
+        onTransformEnd: () => {},
+        onContextMenu: () => {},
+      };
+      switch (el.type) {
+        case 'text':    return <TextElement key={el.id} {...props} />;
+        case 'textbox': return <TextBoxElement key={el.id} {...props} />;
+        case 'image':   return <ImageElement key={el.id} {...props} />;
+        case 'arrow':   return <ArrowElement key={el.id} {...props} />;
+        default:        return null;
+      }
+    }
+
     const props = {
       element: el,
       scale,
@@ -133,6 +173,21 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
       default:        return null;
     }
   };
+
+  if (!interactive) {
+    return (
+      <Stage
+        ref={stageRef}
+        width={displayWidth}
+        height={displayHeight}
+        listening={false}
+      >
+        <Layer>
+          {sortedElements.map(renderElement)}
+        </Layer>
+      </Stage>
+    );
+  }
 
   return (
     <>
@@ -170,7 +225,7 @@ export default function KonvaLayer({ stageRef, displayWidth, displayHeight, scal
           )}
 
           {/* Selection transformer */}
-          {selectedId && (
+          {selectedId && selectedId !== '__model3d__' && (
             <SelectionTransformer
               stageRef={stageRef}
               selectedId={selectedId}

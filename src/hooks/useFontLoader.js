@@ -2,22 +2,28 @@ import { useRef } from 'react';
 
 const loadedFonts = new Set();
 
+// Fonts bundled with the app — no Google Fonts fetch needed.
+const LOCAL_FONTS = new Set(['Geist', 'Geist Mono']);
+
 /**
- * Load a Google Font by name using the FontFace API.
- * Konva renders to canvas so fonts must be loaded into document.fonts before use.
+ * Load a font for use in Konva canvas.
+ * Local/bundled fonts (e.g. Geist) are already available in document.fonts via
+ * Next.js; Google Fonts are injected via a <link> tag on demand.
  */
 export async function loadGoogleFont(fontFamily) {
   if (loadedFonts.has(fontFamily)) return true;
 
-  // Inject a Google Fonts <link> tag
-  const encoded = encodeURIComponent(fontFamily);
-  const linkId = `gf-${encoded}`;
-  if (!document.getElementById(linkId)) {
-    const link = document.createElement('link');
-    link.id = linkId;
-    link.rel = 'stylesheet';
-    link.href = `https://fonts.googleapis.com/css2?family=${encoded}:wght@400;700&display=swap`;
-    document.head.appendChild(link);
+  if (!LOCAL_FONTS.has(fontFamily)) {
+    // Inject a Google Fonts <link> tag
+    const encoded = encodeURIComponent(fontFamily);
+    const linkId = `gf-${encoded}`;
+    if (!document.getElementById(linkId)) {
+      const link = document.createElement('link');
+      link.id = linkId;
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${encoded}:wght@400;700&display=swap`;
+      document.head.appendChild(link);
+    }
   }
 
   try {
@@ -55,6 +61,7 @@ export async function searchGoogleFonts(query) {
 }
 
 export const POPULAR_FONTS = [
+  'Geist', 'Geist Mono',
   'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald',
   'Raleway', 'Poppins', 'Bebas Neue', 'Anton', 'Barlow',
   'Inter', 'Nunito', 'Playfair Display', 'Merriweather', 'Ubuntu',

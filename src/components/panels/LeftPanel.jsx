@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useProjectStore } from '@/store/projectStore';
+import { useProjectStore, getAllItemsSorted } from '@/store/projectStore';
 import { useAssetStore } from '@/store/assetStore';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -27,7 +27,6 @@ export default function LeftPanel() {
   const fileInputRef = useRef();
   const [activeTab, setActiveTab] = useState('add');
   const [isDragging, setIsDragging] = useState(false);
-
   const imageAssets = assets.filter((a) => a.type === 'image');
   const modelAssets = assets.filter((a) => a.type === '3d');
 
@@ -55,7 +54,7 @@ export default function LeftPanel() {
       zIndex: 0,
       content: 'Your Text Here',
       style: {
-        fontFamily: 'Inter',
+        fontFamily: 'Geist',
         fontSize: 48,
         color: '#ffffff',
         bold: false,
@@ -79,7 +78,7 @@ export default function LeftPanel() {
       zIndex: 0,
       content: 'Text Box Content',
       style: {
-        fontFamily: 'Inter',
+        fontFamily: 'Geist',
         fontSize: 20,
         color: '#ffffff',
         bold: false,
@@ -148,6 +147,7 @@ export default function LeftPanel() {
         <Tab id="add" label="Add" />
         <Tab id="assets" label="Assets" />
         <Tab id="bgs" label="BGs" />
+        <Tab id="layers" label="Layers" />
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -253,6 +253,8 @@ export default function LeftPanel() {
             <SolidColorPicker />
           </div>
         )}
+
+        {activeTab === 'layers' && <LayersPanel />}
       </div>
     </aside>
   );
@@ -351,6 +353,122 @@ function BgImageUploader({ setBackground, uploadAsset }) {
         className="hidden"
         onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
       />
+    </div>
+  );
+}
+
+// ---- Layers Panel ----
+
+function elementIcon(el) {
+  switch (el.type) {
+    case 'text':    return 'T';
+    case 'textbox': return '☐';
+    case 'image':   return '🖼';
+    case 'arrow':   return '→';
+    default:        return '?';
+  }
+}
+
+function elementLabel(el) {
+  if (el.type === 'text' || el.type === 'textbox') {
+    const text = (el.content || '').trim();
+    return text.length > 20 ? text.slice(0, 20) + '…' : text || el.type;
+  }
+  if (el.type === 'arrow') return el.variant || 'Arrow';
+  if (el.type === 'image') return 'Image';
+  return el.type;
+}
+
+function LayersPanel() {
+  const {
+    elements, model3d, selectedId,
+    setSelectedId, bringForward, sendBackward,
+  } = useProjectStore();
+
+  // Unified sorted list — highest zIndex first (top of visual stack at top of list)
+  const allSorted = getAllItemsSorted(elements, model3d).reverse();
+
+  return (
+    <div>
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 px-1 pt-1">
+        Stack order (top → bottom)
+      </p>
+      <div className="space-y-0.5">
+        {allSorted.map((item) => {
+          const isModel = item.kind === 'model3d';
+          const isSelected = isModel
+            ? selectedId === '__model3d__'
+            : selectedId === item.id;
+
+          let icon, label;
+          if (isModel) {
+            icon = '📦';
+            label = '3D Model';
+          } else {
+            const el = elements.find((e) => e.id === item.id);
+            icon = el ? elementIcon(el) : '?';
+            label = el ? elementLabel(el) : 'Unknown';
+          }
+
+          const handleSelect = () => {
+            if (isModel) {
+              setSelectedId('__model3d__');
+            } else {
+              setSelectedId(item.id);
+            }
+          };
+
+          return (
+            <div
+              key={item.id}
+              onClick={handleSelect}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-pointer transition-colors group ${
+                isSelected
+                  ? 'bg-indigo-600/30 border border-indigo-500/50'
+                  : 'hover:bg-[#1e1e1e] border border-transparent'
+              }`}
+            >
+              <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+                {icon}
+              </span>
+              <span className={`flex-1 text-xs truncate ${isSelected ? 'text-white' : 'text-gray-400'}`}>
+                {label}
+              </span>
+              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => { e.stopPropagation(); bringForward(item.id); }}
+                  className="w-5 h-5 rounded bg-[#333] hover:bg-indigo-600 text-gray-400 hover:text-white flex items-center justify-center text-[10px] transition-colors"
+                  title="Bring Forward"
+                >
+                  ↑
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); sendBackward(item.id); }}
+                  className="w-5 h-5 rounded bg-[#333] hover:bg-indigo-600 text-gray-400 hover:text-white flex items-center justify-center text-[10px] transition-colors"
+                  title="Send Backward"
+                >
+                  ↓
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Background — always fixed at the bottom */}
+        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-transparent opacity-40 cursor-default">
+          <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+            ▬
+          </span>
+          <span className="flex-1 text-xs text-gray-500 truncate">Background</span>
+          <span className="text-[9px] text-gray-600">locked</span>
+        </div>
+      </div>
+
+      {allSorted.length === 0 && (
+        <p className="text-center text-gray-600 text-xs mt-6 px-2">
+          Add elements or a 3D model to see layers here.
+        </p>
+      )}
     </div>
   );
 }

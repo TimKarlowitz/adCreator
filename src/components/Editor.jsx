@@ -17,6 +17,7 @@ import ProjectsModal from '@/components/modals/ProjectsModal';
 
 export default function Editor() {
   const stageRef = useRef();
+  const bottomStageRef = useRef();
   const threeCanvasRef = useRef();
   const [showExport, setShowExport] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -108,7 +109,7 @@ export default function Editor() {
             }}
           >
             <div ref={threeCanvasRef} className="relative">
-              <CanvasContainer stageRef={stageRef} />
+              <CanvasContainer stageRef={stageRef} bottomStageRef={bottomStageRef} />
             </div>
           </div>
         </main>
@@ -125,6 +126,7 @@ export default function Editor() {
         <ExportModal
           onClose={() => setShowExport(false)}
           stageRef={stageRef}
+          bottomStageRef={bottomStageRef}
           threeCanvasRef={threeCanvasRef}
         />
       )}

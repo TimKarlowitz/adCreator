@@ -10,7 +10,7 @@ export default function RightPanel() {
 
   const selected = elements.find((e) => e.id === selectedId);
 
-  if (!selectedId) {
+  if (!selectedId || selectedId === '__model3d__') {
     return (
       <aside className="w-64 bg-[#111] border-l border-[#2a2a2a] flex flex-col">
         <Model3dPanel model={model3d} onUpdate={updateModel3d} />
@@ -49,7 +49,7 @@ export default function RightPanel() {
               className="w-full text-left px-2 py-1.5 rounded bg-[#1a1a1a] border border-[#333] text-xs text-gray-300 hover:border-indigo-500 transition-colors"
             >
               <span className="text-gray-500 mr-2">Font</span>
-              {selected.style?.fontFamily || 'Inter'}
+              {selected.style?.fontFamily || 'Geist'}
             </button>
             <NumInput
               label="Font Size"
@@ -311,6 +311,49 @@ function Model3dPanel({ model, onUpdate }) {
             </div>
             <SliderRow label="Speed" min={0} max={5} step={0.1} value={model.rotationSpeed}
               onChange={(v) => onUpdate({ rotationSpeed: v })} fmt={(v) => v.toFixed(1)} />
+
+            {/* Rotation Axis */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Axis</p>
+                <div className="flex gap-1">
+                  {[['X', 1,0,0], ['Y', 0,1,0], ['Z', 0,0,1]].map(([label, x, y, z]) => (
+                    <button
+                      key={label}
+                      onClick={() => onUpdate({ rotationAxisX: x, rotationAxisY: y, rotationAxisZ: z })}
+                      className="px-2 py-0.5 rounded text-[10px] bg-[#2a2a2a] text-gray-400 hover:bg-indigo-700 hover:text-white transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <SliderRow label="Axis X" min={-1} max={1} step={0.05} value={model.rotationAxisX ?? 0}
+                onChange={(v) => onUpdate({ rotationAxisX: v })} fmt={(v) => v.toFixed(2)} />
+              <SliderRow label="Axis Y" min={-1} max={1} step={0.05} value={model.rotationAxisY ?? 1}
+                onChange={(v) => onUpdate({ rotationAxisY: v })} fmt={(v) => v.toFixed(2)} />
+              <SliderRow label="Axis Z" min={-1} max={1} step={0.05} value={model.rotationAxisZ ?? 0}
+                onChange={(v) => onUpdate({ rotationAxisZ: v })} fmt={(v) => v.toFixed(2)} />
+            </div>
+
+            {/* Pivot offset */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Pivot Offset</p>
+                <button
+                  onClick={() => onUpdate({ pivotX: 0, pivotY: 0, pivotZ: 0 })}
+                  className="px-2 py-0.5 rounded text-[10px] bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a] transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+              <SliderRow label="Pivot X" min={-3} max={3} step={0.05} value={model.pivotX ?? 0}
+                onChange={(v) => onUpdate({ pivotX: v })} fmt={(v) => v.toFixed(2)} />
+              <SliderRow label="Pivot Y" min={-3} max={3} step={0.05} value={model.pivotY ?? 0}
+                onChange={(v) => onUpdate({ pivotY: v })} fmt={(v) => v.toFixed(2)} />
+              <SliderRow label="Pivot Z" min={-3} max={3} step={0.05} value={model.pivotZ ?? 0}
+                onChange={(v) => onUpdate({ pivotZ: v })} fmt={(v) => v.toFixed(2)} />
+            </div>
           </div>
 
           {/* Environment preset */}

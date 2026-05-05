@@ -9,14 +9,21 @@ const RESOLUTIONS = {
   '9:16': { label: '1080×1920', width: 1080, height: 1920 },
 };
 
-export default function ExportModal({ onClose, stageRef, threeCanvasRef }) {
+export default function ExportModal({ onClose, stageRef, bottomStageRef, threeCanvasRef }) {
   const { exportConfig, setExportConfig, canvasConfig, elements } = useProjectStore();
   const { exportVideo, progress, isExporting, error, abort } = useExport();
 
   const resolution = RESOLUTIONS[canvasConfig.aspectRatio] || RESOLUTIONS['1:1'];
 
   const handleExport = () => {
-    exportVideo({ stageRef, threeCanvasRef, exportConfig, elements });
+    exportVideo({
+      stageRef,
+      bottomStageRef,
+      threeCanvasRef,
+      exportConfig,
+      elements,
+      backgroundColor: canvasConfig.backgroundColor,
+    });
   };
 
   return (

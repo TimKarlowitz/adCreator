@@ -10,11 +10,6 @@ async function getFFmpeg() {
   const ffmpeg = new FFmpeg();
 
   const coreBase = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-  // Serve worker.js from /public/ffmpeg/ so its relative imports (./const.js,
-  // ./errors.js) resolve correctly. Using a real URL also prevents webpack from
-  // bundling the worker, which is what caused the "Cannot find module blob:..."
-  // error — webpack would replace the worker path with a blob: URL, then fail
-  // when the worker's own import() tried to load that blob: URL.
   await ffmpeg.load({
     classWorkerURL: new URL('/ffmpeg/worker.js', window.location.href).href,
     coreURL: await toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript'),
@@ -26,22 +21,43 @@ async function getFFmpeg() {
 }
 
 /**
- * Composite one frame: Three.js canvas on bottom, Konva on top.
- * Returns an ImageData-compatible Uint8ClampedArray.
+ * Composite one frame with correct z-order:
+ *   1. background color (CSS)
+ *   2. bottom Konva stage (elements below 3D model)
+ *   3. Three.js canvas (background image + 3D model, transparent elsewhere)
+ *   4. top Konva stage (elements above 3D model)
  */
-async function compositeFrame({ threeCanvas, konvaStage, t, elements, width, height, scale }) {
+async function compositeFrame({
+  threeCanvas,
+  topKonvaStage,
+  bottomKonvaStage,
+  backgroundColor,
+  width,
+  height,
+}) {
   const offscreen = new OffscreenCanvas(width, height);
   const ctx = offscreen.getContext('2d');
 
-  // Draw Three.js WebGL frame
+  // 1. Background color
+  ctx.fillStyle = backgroundColor || '#000000';
+  ctx.fillRect(0, 0, width, height);
+
+  // 2. Bottom Konva stage (elements below 3D model)
+  if (bottomKonvaStage) {
+    const bottomCanvas = bottomKonvaStage.toCanvas({ pixelRatio: width / bottomKonvaStage.width() });
+    ctx.drawImage(bottomCanvas, 0, 0, width, height);
+  }
+
+  // 3. Three.js WebGL frame (transparent background, draws bg image + 3D model)
   if (threeCanvas) {
     ctx.drawImage(threeCanvas, 0, 0, width, height);
   }
 
-  // Apply animation state to each element before Konva draws
-  // We mutate a temporary representation, not the real store
-  const stageCanvas = konvaStage.toCanvas({ pixelRatio: width / konvaStage.width() });
-  ctx.drawImage(stageCanvas, 0, 0, width, height);
+  // 4. Top Konva stage (elements above 3D model)
+  if (topKonvaStage) {
+    const topCanvas = topKonvaStage.toCanvas({ pixelRatio: width / topKonvaStage.width() });
+    ctx.drawImage(topCanvas, 0, 0, width, height);
+  }
 
   const blob = await offscreen.convertToBlob({ type: 'image/png' });
   return new Uint8Array(await blob.arrayBuffer());
@@ -53,7 +69,14 @@ export function useExport() {
   const [error, setError] = useState(null);
   const abortRef = useRef(false);
 
-  const exportVideo = async ({ stageRef, threeCanvasRef, exportConfig, elements }) => {
+  const exportVideo = async ({
+    stageRef,
+    bottomStageRef,
+    threeCanvasRef,
+    exportConfig,
+    elements,
+    backgroundColor,
+  }) => {
     const { duration = 4, fps = 30, format = 'mp4' } = exportConfig;
     const totalFrames = Math.round(duration * fps);
 
@@ -65,32 +88,30 @@ export function useExport() {
     try {
       const ffmpeg = await getFFmpeg();
 
-      // Get the Three.js canvas element
       const threeCanvas = threeCanvasRef?.current?.querySelector('canvas');
-      const konvaStage = stageRef?.current;
+      const topKonvaStage = stageRef?.current;
+      const bottomKonvaStage = bottomStageRef?.current;
 
-      if (!konvaStage) throw new Error('Konva stage not found');
+      if (!topKonvaStage) throw new Error('Konva stage not found');
 
       const exportWidth = 1080;
-      const exportHeight = konvaStage.height() === konvaStage.width()
+      const exportHeight = topKonvaStage.height() === topKonvaStage.width()
         ? 1080
-        : konvaStage.height() > konvaStage.width()
-        ? 1920 : 607; // approximate
+        : topKonvaStage.height() > topKonvaStage.width()
+        ? 1920 : 607;
 
       for (let frame = 0; frame < totalFrames; frame++) {
         if (abortRef.current) break;
 
-        const t = frame / fps;
         setProgress(Math.round((frame / totalFrames) * 85));
 
         const frameData = await compositeFrame({
           threeCanvas,
-          konvaStage,
-          t,
-          elements,
+          topKonvaStage,
+          bottomKonvaStage,
+          backgroundColor,
           width: exportWidth,
           height: exportHeight,
-          scale: exportWidth / konvaStage.width(),
         });
 
         const filename = `frame${String(frame).padStart(4, '0')}.png`;
@@ -113,7 +134,6 @@ export function useExport() {
         setProgress(99);
         downloadBlob(new Blob([data.buffer], { type: 'video/mp4' }), 'ad-export.mp4');
       } else {
-        // GIF: two-pass with palette
         await ffmpeg.exec([
           '-r', String(fps),
           '-i', 'frame%04d.png',
