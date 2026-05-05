@@ -24,9 +24,9 @@ function BackgroundImage({ src }) {
   }, [src]);
 
   return (
-    <mesh ref={meshRef} position={[0, 0, -1]}>
-      <planeGeometry args={[viewport.width * 2, viewport.height * 2]} />
-      <meshBasicMaterial />
+    <mesh ref={meshRef} position={[0, 0, -1]} renderOrder={-1}>
+      <planeGeometry args={[viewport.width * 10, viewport.height * 10]} />
+      <meshBasicMaterial depthWrite={false} />
     </mesh>
   );
 }
@@ -55,8 +55,10 @@ function RotatingModel({
       camera.position.z = requiredDist;
     }
 
-    camera.near = Math.max(0.001, camera.position.z - effectiveRadius * 1.2);
-    camera.far = camera.position.z + effectiveRadius * 1.2 + 100;
+    // Keep near very small so no part of the model ever clips against the front plane.
+    // Only expand far to accommodate the model's full depth from the camera.
+    camera.near = 0.001;
+    camera.far = Math.max(10000, camera.position.z + effectiveRadius * 3);
     camera.updateProjectionMatrix();
   }, [scale, camera]);
 
@@ -80,6 +82,15 @@ function RotatingModel({
         box.getCenter(center);
         scene.position.sub(center);
 
+        // Disable per-mesh frustum culling so that elongated parts (tails, wings,
+        // limbs) are never skipped because their bounding sphere temporarily exits
+        // the view frustum during rotation.
+        scene.traverse((child) => {
+          if (child.isMesh) {
+            child.frustumCulled = false;
+          }
+        });
+
         modelGroupRef.current.add(scene);
 
         // Store the model's unscaled bounding-sphere radius so the clipping
@@ -93,8 +104,8 @@ function RotatingModel({
         if (camera.position.z < requiredDist) {
           camera.position.z = requiredDist;
         }
-        camera.near = Math.max(0.001, camera.position.z - effectiveRadius * 1.2);
-        camera.far = camera.position.z + effectiveRadius * 1.2 + 100;
+        camera.near = 0.001;
+        camera.far = Math.max(10000, camera.position.z + effectiveRadius * 3);
         camera.updateProjectionMatrix();
       }, undefined, (err) => {
         console.warn('GLTF load error:', err);
@@ -202,7 +213,8 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
     <Canvas
       style={{ width: displayWidth, height: displayHeight, display: 'block' }}
       gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
-      camera={{ position: [0, 0, 5], fov: 50 }}
+      onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
+      camera={{ position: [0, 0, 5], fov: 50, near: 0.001, far: 10000 }}
     >
       <SceneLights lights={model3d.lights} />
 

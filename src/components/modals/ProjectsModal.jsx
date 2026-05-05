@@ -117,7 +117,7 @@ function safeThumb(stageRef) {
 }
 
 export default function ProjectsModal({ onClose, stageRef, onImport }) {
-  const { loadProject } = useProjectStore();
+  const { loadProject, newProject } = useProjectStore();
   const [tab, setTab] = useState('projects');
   const [projects, setProjects] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -243,13 +243,23 @@ export default function ProjectsModal({ onClose, stageRef, onImport }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {tab === 'projects' && (
-              <>
-                <button
-                  onClick={handleImportClick}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs text-gray-300 hover:text-white bg-[#111] hover:bg-[#2a2a2a] border border-[#333] transition-colors"
-                  title="Import a .adcreator.json file"
-                >
+          {tab === 'projects' && (
+            <>
+              <button
+                onClick={() => { newProject(); onClose(); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs text-white bg-indigo-600 hover:bg-indigo-500 transition-colors"
+                title="Create a new empty project"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                New Project
+              </button>
+              <button
+                onClick={handleImportClick}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs text-gray-300 hover:text-white bg-[#111] hover:bg-[#2a2a2a] border border-[#333] transition-colors"
+                title="Import a .adcreator.json file"
+              >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10" transform="rotate(180 12 12)"/>
@@ -275,7 +285,7 @@ export default function ProjectsModal({ onClose, stageRef, onImport }) {
           {/* My Projects tab */}
           {tab === 'projects' && (
             projects.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="w-12 h-12 rounded-full bg-[#111] border border-[#2a2a2a] flex items-center justify-center mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.5">
                     <rect x="2" y="7" width="20" height="14" rx="2"/>
@@ -283,16 +293,39 @@ export default function ProjectsModal({ onClose, stageRef, onImport }) {
                   </svg>
                 </div>
                 <p className="text-gray-500 text-sm mb-1">No saved projects yet.</p>
-                <p className="text-gray-600 text-xs mb-4">Your work auto-saves as you edit. Use "Save As" to name and keep a version.</p>
-                <button
-                  onClick={() => setTab('save')}
-                  className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm transition-colors"
-                >
-                  Save Current Project
-                </button>
+                <p className="text-gray-600 text-xs mb-5">Your work auto-saves as you edit. Use "Save As" to name and keep a version.</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { newProject(); onClose(); }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded bg-[#1a1a1a] hover:bg-[#2a2a2a] border border-[#333] text-gray-300 hover:text-white text-sm transition-colors"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    New Project
+                  </button>
+                  <button
+                    onClick={() => setTab('save')}
+                    className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm transition-colors"
+                  >
+                    Save Current Project
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-3">
+                {/* New project card */}
+                <button
+                  onClick={() => { newProject(); onClose(); }}
+                  className="bg-[#111] rounded-lg border border-dashed border-[#333] hover:border-indigo-500/60 hover:bg-[#161622] transition-colors flex flex-col items-center justify-center gap-2 aspect-video cursor-pointer group col-span-1 min-h-[140px]"
+                >
+                  <div className="w-8 h-8 rounded-full bg-[#1a1a1a] group-hover:bg-indigo-600/20 border border-[#333] group-hover:border-indigo-500/50 flex items-center justify-center transition-colors">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 group-hover:text-indigo-400 transition-colors">
+                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-500 group-hover:text-indigo-400 font-medium transition-colors">New Project</span>
+                </button>
                 {projects.map((p) => (
                   <ProjectCard
                     key={p.id}

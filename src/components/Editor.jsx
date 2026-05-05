@@ -24,7 +24,7 @@ export default function Editor() {
   const [showProjects, setShowProjects] = useState(false);
 
   const { loadAll } = useAssetStore();
-  const { zoom, canvasConfig, undo, redo, loadProject } = useProjectStore();
+  const { zoom, canvasConfig, undo, redo, loadProject, newProject } = useProjectStore();
   const { displayWidth, displayHeight } = useAspectRatio(canvasConfig.aspectRatio);
 
   // Thumbnail generator passed to auto-save
@@ -88,6 +88,7 @@ export default function Editor() {
         onExport={() => setShowExport(true)}
         onTemplates={() => setShowTemplates(true)}
         onProjects={() => setShowProjects(true)}
+        onNewProject={() => { newProject(); }}
         isSaving={isSaving}
         lastSaved={lastSaved}
       />

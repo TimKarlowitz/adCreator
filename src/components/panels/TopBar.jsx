@@ -24,7 +24,7 @@ function SaveIndicator({ isSaving, lastSaved }) {
   return null;
 }
 
-export default function TopBar({ onExport, onTemplates, onProjects, isSaving, lastSaved }) {
+export default function TopBar({ onExport, onTemplates, onProjects, onNewProject, isSaving, lastSaved }) {
   const { canvasConfig, setAspectRatio, undo, redo, _past, _future } = useProjectStore();
 
   return (
@@ -88,6 +88,16 @@ export default function TopBar({ onExport, onTemplates, onProjects, isSaving, la
       {/* Actions */}
       <div className="flex items-center gap-2">
         <SaveIndicator isSaving={isSaving} lastSaved={lastSaved} />
+        <button
+          onClick={onNewProject}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm text-gray-300 hover:text-white hover:bg-[#2a2a2a] transition-colors"
+          title="New empty project"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New
+        </button>
         <button
           onClick={onProjects}
           className="px-3 py-1.5 rounded text-sm text-gray-300 hover:text-white hover:bg-[#2a2a2a] transition-colors"

@@ -15,293 +15,349 @@ const BUILT_IN_BACKGROUNDS = [
 ];
 
 const BUILT_IN_ARROWS = [
-  { variant: 'arrow-right', label: 'Right Arrow' },
-  { variant: 'arrow-left', label: 'Left Arrow' },
-  { variant: 'arrow-double', label: 'Double Arrow' },
-  { variant: 'arrow-curved', label: 'Curved Arrow' },
+  { variant: 'arrow-right', label: 'Right' },
+  { variant: 'arrow-left', label: 'Left' },
+  { variant: 'arrow-double', label: 'Double' },
+  { variant: 'arrow-curved', label: 'Curved' },
 ];
 
 export default function LeftPanel() {
-  const { addElement, setBackground, canvasConfig } = useProjectStore();
-  const { assets, uploadAsset } = useAssetStore();
-  const fileInputRef = useRef();
-  const [activeTab, setActiveTab] = useState('add');
-  const [isDragging, setIsDragging] = useState(false);
+  const { addElement, setBackground, setBackgroundColor, setModel3d, canvasConfig } = useProjectStore();
+  const { assets, uploadAsset, removeAsset } = useAssetStore();
+
+  const imageInputRef = useRef();
+  const modelInputRef = useRef();
+
+  // 'none' | 'root' | 'arrows' | 'image' | '3d'
+  const [addSection, setAddSection] = useState('none');
+  const [showBgSection, setShowBgSection] = useState(false);
+  const [isDraggingImg, setIsDraggingImg] = useState(false);
+
   const imageAssets = assets.filter((a) => a.type === 'image');
   const modelAssets = assets.filter((a) => a.type === '3d');
 
-  const handleFileUpload = async (files) => {
-    for (const file of Array.from(files)) {
-      await uploadAsset(file);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFileUpload(e.dataTransfer.files);
-  };
+  // ---- element creators ----
 
   const addText = () => {
-    const id = uuidv4();
     addElement({
-      id,
+      id: uuidv4(),
       type: 'text',
-      x: 80,
-      y: 120,
-      width: 500,
-      height: 100,
-      zIndex: 0,
+      x: 80, y: 120, width: 500, height: 100, zIndex: 0,
       content: 'Your Text Here',
-      style: {
-        fontFamily: 'Geist',
-        fontSize: 48,
-        color: '#ffffff',
-        bold: false,
-        underline: false,
-        align: 'left',
-        spans: [],
-      },
+      style: { fontFamily: 'Geist', fontSize: 48, color: '#ffffff', bold: false, underline: false, align: 'left', spans: [] },
       animation: { type: 'none', startAt: 0, duration: 0.5 },
     });
+    setAddSection('none');
   };
 
   const addTextBox = () => {
-    const id = uuidv4();
     addElement({
-      id,
+      id: uuidv4(),
       type: 'textbox',
-      x: 80,
-      y: 200,
-      width: 400,
-      height: 120,
-      zIndex: 0,
+      x: 80, y: 200, width: 400, height: 120, zIndex: 0,
       content: 'Text Box Content',
-      style: {
-        fontFamily: 'Geist',
-        fontSize: 20,
-        color: '#ffffff',
-        bold: false,
-        align: 'left',
-        borderColor: '#6366f1',
-        borderWidth: 2,
-        padding: 16,
-        background: 'rgba(0,0,0,0.5)',
-        borderRadius: 8,
-      },
+      style: { fontFamily: 'Geist', fontSize: 20, color: '#ffffff', bold: false, align: 'left', borderColor: '#6366f1', borderWidth: 2, padding: 16, background: 'rgba(0,0,0,0.5)', borderRadius: 8 },
       animation: { type: 'none', startAt: 0, duration: 0.5 },
     });
+    setAddSection('none');
   };
 
   const addArrow = (variant) => {
-    const id = uuidv4();
     addElement({
-      id,
+      id: uuidv4(),
       type: 'arrow',
-      x: 100,
-      y: 300,
-      width: 200,
-      height: 60,
-      zIndex: 0,
+      x: 100, y: 300, width: 200, height: 60, zIndex: 0,
       variant,
       style: { color: '#ffffff', strokeWidth: 3 },
       animation: { type: 'none', startAt: 0, duration: 0.4 },
     });
+    setAddSection('none');
   };
 
   const addImageFromAsset = (asset) => {
-    const id = uuidv4();
     addElement({
-      id,
+      id: uuidv4(),
       type: 'image',
-      x: 100,
-      y: 100,
-      width: 300,
-      height: 300,
-      zIndex: 0,
+      x: 100, y: 100, width: 300, height: 300, zIndex: 0,
       assetId: asset.id,
       src: asset.objectUrl,
       animation: { type: 'none', startAt: 0, duration: 0 },
     });
+    setAddSection('none');
   };
 
-  const useBuiltInBackground = (bg) => {
-    setBackground({ type: 'image', src: bg.src, assetId: null, opacity: 1, fit: 'cover' });
+  // ---- upload handlers ----
+
+  const handleImageFiles = async (files) => {
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      const result = await uploadAsset(file);
+      addImageFromAsset(result);
+    }
   };
 
-  const Tab = ({ id, label }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      className={`px-3 py-1.5 text-xs rounded transition-colors ${
-        activeTab === id ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const handleModelFiles = async (files) => {
+    for (const file of Array.from(files)) {
+      const { id, objectUrl } = await uploadAsset(file);
+      const { model3d } = useProjectStore.getState();
+      setModel3d({ ...model3d, assetId: id, src: objectUrl });
+    }
+    setAddSection('none');
+  };
+
+  const toggleAddSection = (section) =>
+    setAddSection((prev) => (prev === section ? 'none' : section));
 
   return (
     <aside className="w-56 bg-[#111] border-r border-[#2a2a2a] flex flex-col overflow-hidden">
-      {/* Tabs */}
-      <div className="flex gap-1 p-2 border-b border-[#2a2a2a]">
-        <Tab id="add" label="Add" />
-        <Tab id="assets" label="Assets" />
-        <Tab id="bgs" label="BGs" />
-        <Tab id="layers" label="Layers" />
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a2a2a]">
+        <span className="text-[10px] text-gray-400 uppercase tracking-widest font-medium">Layers</span>
+        <button
+          onClick={() => toggleAddSection('root')}
+          title="Add new layer"
+          className={`w-6 h-6 rounded flex items-center justify-center text-base leading-none transition-colors ${
+            addSection !== 'none' ? 'bg-indigo-600 text-white' : 'bg-[#2a2a2a] text-gray-400 hover:bg-indigo-600 hover:text-white'
+          }`}
+        >
+          {addSection !== 'none' ? '×' : '+'}
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
-        {activeTab === 'add' && (
-          <div className="space-y-1">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 px-1">Elements</p>
-            <AddButton onClick={addText} icon="T" label="Text" />
-            <AddButton onClick={addTextBox} icon="☐" label="Text Box" />
-
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-3 mb-2 px-1">Arrows</p>
-            {BUILT_IN_ARROWS.map(({ variant, label }) => (
-              <AddButton key={variant} onClick={() => addArrow(variant)} icon="→" label={label} />
-            ))}
-
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-3 mb-2 px-1">Upload</p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full py-2 rounded border border-dashed border-[#333] text-gray-400 hover:border-indigo-500 hover:text-indigo-400 text-xs transition-colors"
-            >
-              + Upload Image / GLB
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*,.glb,.gltf"
-              className="hidden"
-              onChange={(e) => handleFileUpload(e.target.files)}
+      {/* ── Add Layer Menu ── */}
+      {addSection !== 'none' && (
+        <div className="border-b border-[#2a2a2a] bg-[#0d0d0d]">
+          {/* Root choices */}
+          <div className="px-2 pt-2 pb-1 space-y-0.5">
+            <MenuRow icon="T" label="Text" onClick={addText} />
+            <MenuRow icon="☐" label="Text Box" onClick={addTextBox} />
+            <MenuRow
+              icon="→"
+              label="Arrow"
+              hasChildren
+              active={addSection === 'arrows'}
+              onClick={() => toggleAddSection('arrows')}
             />
-          </div>
-        )}
-
-        {activeTab === 'assets' && (
-          <div>
-            <div
-              onDrop={handleDrop}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              className={`w-full py-4 rounded border border-dashed text-center text-xs mb-3 transition-colors cursor-pointer ${
-                isDragging ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400' : 'border-[#333] text-gray-500'
-              }`}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Drop files here or click
-            </div>
-
-            {imageAssets.length > 0 && (
-              <>
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Images</p>
-                <div className="grid grid-cols-2 gap-1 mb-3">
-                  {imageAssets.map((a) => (
-                    <button
-                      key={a.id}
-                      onClick={() => addImageFromAsset(a)}
-                      className="aspect-square rounded overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-indigo-500 transition-all"
-                      title={a.name}
-                    >
-                      <img src={a.objectUrl} alt={a.name} className="w-full h-full object-cover" />
-                    </button>
-                  ))}
+            {addSection === 'arrows' && (
+              <div className="pl-6 space-y-0.5 pb-1">
+                {BUILT_IN_ARROWS.map(({ variant, label }) => (
+                  <button
+                    key={variant}
+                    onClick={() => addArrow(variant)}
+                    className="w-full text-left px-2 py-1 rounded text-xs text-gray-400 hover:bg-[#1e1e1e] hover:text-white transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <MenuRow
+              icon="🖼"
+              label="Image"
+              hasChildren
+              active={addSection === 'image'}
+              onClick={() => toggleAddSection('image')}
+            />
+            {addSection === 'image' && (
+              <div className="pl-2 pb-2 space-y-2">
+                {/* Upload new */}
+                <div
+                  onDrop={(e) => { e.preventDefault(); setIsDraggingImg(false); handleImageFiles(e.dataTransfer.files); }}
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingImg(true); }}
+                  onDragLeave={() => setIsDraggingImg(false)}
+                  onClick={() => imageInputRef.current?.click()}
+                  className={`w-full py-2 rounded border border-dashed text-center text-xs cursor-pointer transition-colors ${
+                    isDraggingImg ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400' : 'border-[#333] text-gray-500 hover:border-indigo-500 hover:text-indigo-400'
+                  }`}
+                >
+                  Upload image
                 </div>
-              </>
-            )}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleImageFiles(e.target.files)}
+                />
 
-            {modelAssets.length > 0 && (
-              <>
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">3D Models</p>
-                <div className="space-y-1">
-                  {modelAssets.map((a) => (
-                    <ModelAssetRow key={a.id} asset={a} />
-                  ))}
-                </div>
-              </>
+                {/* Previously uploaded images */}
+                {imageAssets.length > 0 && (
+                  <>
+                    <p className="text-[9px] text-gray-600 uppercase tracking-wider">Previously uploaded</p>
+                    <div className="grid grid-cols-3 gap-1">
+                      {imageAssets.map((a) => (
+                        <div key={a.id} className="relative group/thumb aspect-square">
+                          <button
+                            onClick={() => addImageFromAsset(a)}
+                            title={a.name}
+                            className="w-full h-full rounded overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-indigo-500 transition-all"
+                          >
+                            <img src={a.objectUrl} alt={a.name} className="w-full h-full object-cover" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); removeAsset(a.id); }}
+                            title="Remove asset"
+                            className="absolute top-0.5 right-0.5 w-4 h-4 rounded bg-black/70 text-red-400 text-[9px] flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
-
-            {assets.length === 0 && (
-              <p className="text-center text-gray-600 text-xs mt-8">No assets yet. Upload images or GLB files.</p>
+            <MenuRow
+              icon="📦"
+              label="3D Model"
+              hasChildren
+              active={addSection === '3d'}
+              onClick={() => toggleAddSection('3d')}
+            />
+            {addSection === '3d' && (
+              <div className="pl-2 pb-2 space-y-2">
+                <button
+                  onClick={() => modelInputRef.current?.click()}
+                  className="w-full py-2 rounded border border-dashed border-[#333] text-gray-500 hover:border-indigo-500 hover:text-indigo-400 text-xs transition-colors"
+                >
+                  Upload GLB / GLTF
+                </button>
+                <input
+                  ref={modelInputRef}
+                  type="file"
+                  accept=".glb,.gltf"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.length && handleModelFiles(e.target.files)}
+                />
+                {modelAssets.length > 0 && (
+                  <>
+                    <p className="text-[9px] text-gray-600 uppercase tracking-wider">Previously uploaded</p>
+                    <div className="space-y-0.5">
+                      {modelAssets.map((a) => (
+                        <ModelAssetRow key={a.id} asset={a} onAdd={() => setAddSection('none')} onRemove={() => removeAsset(a.id)} />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {activeTab === 'bgs' && (
-          <div>
+      {/* ── Layers list ── */}
+      <div className="flex-1 overflow-y-auto p-2 min-h-0">
+        <LayersPanel />
+      </div>
+
+      {/* ── Background section ── */}
+      <div className="border-t border-[#2a2a2a] flex-shrink-0">
+        <button
+          onClick={() => setShowBgSection((v) => !v)}
+          className="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded bg-[#2a2a2a] flex items-center justify-center text-[10px]">▬</span>
+            Background
+          </span>
+          <span className="text-[9px] text-gray-600">{showBgSection ? '▲' : '▼'}</span>
+        </button>
+
+        {showBgSection && (
+          <div className="px-2 pb-3 space-y-3 max-h-64 overflow-y-auto">
             <BgImageUploader setBackground={setBackground} uploadAsset={uploadAsset} />
 
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-3 mb-2">Built-in Backgrounds</p>
-            <div className="grid grid-cols-2 gap-1">
-              {BUILT_IN_BACKGROUNDS.map((bg) => (
-                <button
-                  key={bg.id}
-                  onClick={() => useBuiltInBackground(bg)}
-                  className="aspect-video rounded overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-indigo-500 transition-all"
-                  title={bg.name}
-                >
-                  <div className={`w-full h-full bg-gradient-to-br ${bg.gradient} flex items-end p-1`}>
-                    <span className="text-[8px] text-white/60">{bg.name}</span>
-                  </div>
-                </button>
-              ))}
+            <div>
+              <p className="text-[9px] text-gray-600 uppercase tracking-wider mb-1.5">Presets</p>
+              <div className="grid grid-cols-3 gap-1">
+                {BUILT_IN_BACKGROUNDS.map((bg) => (
+                  <button
+                    key={bg.id}
+                    onClick={() => setBackground({ type: 'image', src: bg.src, assetId: null, opacity: 1, fit: 'cover' })}
+                    title={bg.name}
+                    className="aspect-video rounded overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-indigo-500 transition-all"
+                  >
+                    <div className={`w-full h-full bg-gradient-to-br ${bg.gradient} flex items-end p-0.5`}>
+                      <span className="text-[7px] text-white/50 leading-tight">{bg.name}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-3 mb-2">Solid Color</p>
-            <SolidColorPicker />
+            <div>
+              <p className="text-[9px] text-gray-600 uppercase tracking-wider mb-1.5">Solid Color</p>
+              <SolidColorPicker setBackgroundColor={setBackgroundColor} setBackground={setBackground} canvasConfig={canvasConfig} />
+            </div>
           </div>
         )}
-
-        {activeTab === 'layers' && <LayersPanel />}
       </div>
     </aside>
   );
 }
 
-function AddButton({ onClick, icon, label }) {
+// ── Small UI helpers ──
+
+function MenuRow({ icon, label, onClick, hasChildren, active }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2 px-2 py-2 rounded hover:bg-[#1e1e1e] text-gray-300 hover:text-white transition-colors text-sm"
+      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded transition-colors text-sm ${
+        active ? 'bg-indigo-600/20 text-indigo-300' : 'text-gray-300 hover:bg-[#1e1e1e] hover:text-white'
+      }`}
     >
-      <span className="w-6 h-6 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400">{icon}</span>
-      {label}
+      <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+        {icon}
+      </span>
+      <span className="flex-1 text-left">{label}</span>
+      {hasChildren && <span className="text-[10px] text-gray-600">{active ? '▲' : '▼'}</span>}
     </button>
   );
 }
 
-function ModelAssetRow({ asset }) {
+function ModelAssetRow({ asset, onAdd, onRemove }) {
   const { setModel3d } = useProjectStore();
   return (
-    <button
-      onClick={() => {
-        const { model3d } = useProjectStore.getState();
-        setModel3d({ ...model3d, assetId: asset.id, src: asset.objectUrl });
-      }}
-      className="w-full flex items-center gap-2 px-2 py-2 rounded hover:bg-[#1e1e1e] text-gray-300 transition-colors text-xs"
-    >
-      <div className="w-8 h-8 rounded bg-[#2a2a2a] flex items-center justify-center text-lg">📦</div>
-      <span className="truncate">{asset.name}</span>
-    </button>
+    <div className="flex items-center gap-1 group/model">
+      <button
+        onClick={() => {
+          const { model3d } = useProjectStore.getState();
+          setModel3d({ ...model3d, assetId: asset.id, src: asset.objectUrl });
+          onAdd?.();
+        }}
+        className="flex-1 flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#1e1e1e] text-gray-300 transition-colors text-xs min-w-0"
+      >
+        <div className="w-6 h-6 rounded bg-[#2a2a2a] flex items-center justify-center text-sm flex-shrink-0">📦</div>
+        <span className="truncate">{asset.name}</span>
+      </button>
+      {onRemove && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          title="Remove asset"
+          className="opacity-0 group-hover/model:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/20 text-gray-600 hover:text-red-400 flex-shrink-0 text-[10px]"
+        >
+          ✕
+        </button>
+      )}
+    </div>
   );
 }
 
-function SolidColorPicker() {
-  const { setBackgroundColor, setBackground, canvasConfig } = useProjectStore();
+function SolidColorPicker({ setBackgroundColor, setBackground, canvasConfig }) {
   const PRESETS = ['#000000', '#0f0f0f', '#111827', '#1e1b4b', '#0c0a09', '#030712', '#1a0a2e', '#0a0a0a'];
-
+  const applyColor = (c) => {
+    setBackgroundColor(c);
+    setBackground({ type: 'color', src: null, assetId: null, opacity: 1, fit: 'cover' });
+  };
   return (
     <div>
-      <div className="grid grid-cols-4 gap-1 mb-2">
+      <div className="grid grid-cols-4 gap-1 mb-1.5">
         {PRESETS.map((c) => (
           <button
             key={c}
-            onClick={() => {
-              setBackgroundColor(c);
-              setBackground({ type: 'color', src: null, assetId: null, opacity: 1, fit: 'cover' });
-            }}
+            onClick={() => applyColor(c)}
             className="aspect-square rounded border border-[#333] hover:ring-2 hover:ring-indigo-500 transition-all"
             style={{ background: c }}
             title={c}
@@ -311,11 +367,8 @@ function SolidColorPicker() {
       <input
         type="color"
         value={canvasConfig.backgroundColor}
-        onChange={(e) => {
-          setBackgroundColor(e.target.value);
-          setBackground({ type: 'color', src: null, assetId: null, opacity: 1, fit: 'cover' });
-        }}
-        className="w-full h-8 rounded cursor-pointer bg-transparent border border-[#333]"
+        onChange={(e) => applyColor(e.target.value)}
+        className="w-full h-7 rounded cursor-pointer bg-transparent border border-[#333]"
       />
     </div>
   );
@@ -333,18 +386,18 @@ function BgImageUploader({ setBackground, uploadAsset }) {
   };
 
   return (
-    <div className="mb-1">
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Upload Image</p>
+    <div>
+      <p className="text-[9px] text-gray-600 uppercase tracking-wider mb-1.5">Upload Image</p>
       <button
         onClick={() => inputRef.current?.click()}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded border border-dashed border-[#333] hover:border-indigo-500 text-gray-400 hover:text-indigo-400 text-xs transition-colors"
+        className="w-full flex items-center gap-2 px-2 py-1.5 rounded border border-dashed border-[#333] hover:border-indigo-500 text-gray-400 hover:text-indigo-400 text-xs transition-colors"
       >
         {preview ? (
-          <img src={preview} alt="bg" className="w-8 h-8 rounded object-cover" />
+          <img src={preview} alt="bg" className="w-6 h-6 rounded object-cover flex-shrink-0" />
         ) : (
-          <span className="w-8 h-8 rounded bg-[#2a2a2a] flex items-center justify-center text-base">🖼</span>
+          <span className="w-6 h-6 rounded bg-[#2a2a2a] flex items-center justify-center text-xs flex-shrink-0">🖼</span>
         )}
-        <span>{preview ? 'Change background image' : 'Upload background image'}</span>
+        <span>{preview ? 'Change background' : 'Upload background'}</span>
       </button>
       <input
         ref={inputRef}
@@ -357,7 +410,9 @@ function BgImageUploader({ setBackground, uploadAsset }) {
   );
 }
 
-// ---- Layers Panel ----
+// ──────────────────────────────────────────────────
+// Layers Panel
+// ──────────────────────────────────────────────────
 
 function elementIcon(el) {
   switch (el.type) {
@@ -380,26 +435,18 @@ function elementLabel(el) {
 }
 
 function LayersPanel() {
-  const {
-    elements, model3d, selectedId,
-    setSelectedId, reorderLayers,
-  } = useProjectStore();
+  const { elements, model3d, selectedId, setSelectedId, reorderLayers, removeElement, setModel3d } = useProjectStore();
 
   const [draggedId, setDraggedId] = useState(null);
-  // Index in allSorted before which the drop indicator line shows.
-  // null = no active drop target.
   const [dropIndex, setDropIndex] = useState(null);
 
-  // Unified sorted list — highest zIndex first (top of visual stack at top of list)
   const allSorted = getAllItemsSorted(elements, model3d).reverse();
 
   const handleDragStart = (id, e) => {
     setDraggedId(id);
     e.dataTransfer.effectAllowed = 'move';
-    // Transparent drag ghost
     const ghost = document.createElement('div');
-    ghost.style.position = 'fixed';
-    ghost.style.top = '-9999px';
+    ghost.style.cssText = 'position:fixed;top:-9999px';
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 0, 0);
     setTimeout(() => document.body.removeChild(ghost), 0);
@@ -409,127 +456,107 @@ function LayersPanel() {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const rect = e.currentTarget.getBoundingClientRect();
-    const isTopHalf = e.clientY < rect.top + rect.height / 2;
-    setDropIndex(isTopHalf ? idx : idx + 1);
+    setDropIndex(e.clientY < rect.top + rect.height / 2 ? idx : idx + 1);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     if (draggedId === null || dropIndex === null) return;
-
     const currentIds = allSorted.map((item) => item.id);
     const fromIdx = currentIds.indexOf(draggedId);
     if (fromIdx === -1 || fromIdx === dropIndex || fromIdx + 1 === dropIndex) {
-      setDraggedId(null);
-      setDropIndex(null);
-      return;
+      setDraggedId(null); setDropIndex(null); return;
     }
-
     const newOrder = [...currentIds];
     newOrder.splice(fromIdx, 1);
-    // Adjust insertion index after removal
-    const insertAt = fromIdx < dropIndex ? dropIndex - 1 : dropIndex;
-    newOrder.splice(insertAt, 0, draggedId);
-
+    newOrder.splice(fromIdx < dropIndex ? dropIndex - 1 : dropIndex, 0, draggedId);
     reorderLayers(newOrder);
-    setDraggedId(null);
-    setDropIndex(null);
+    setDraggedId(null); setDropIndex(null);
   };
 
-  const handleDragEnd = () => {
-    setDraggedId(null);
-    setDropIndex(null);
-  };
+  const handleDragEnd = () => { setDraggedId(null); setDropIndex(null); };
 
   return (
     <div
       onDrop={handleDrop}
       onDragOver={(e) => e.preventDefault()}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setDropIndex(null);
-      }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDropIndex(null); }}
     >
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 px-1 pt-1">
-        Stack order (top → bottom)
-      </p>
-      <div className="space-y-0">
-        {allSorted.map((item, idx) => {
-          const isModel = item.kind === 'model3d';
-          const isBeingDragged = draggedId === item.id;
-          const isSelected = isModel
-            ? selectedId === '__model3d__'
-            : selectedId === item.id;
-
-          let icon, label;
-          if (isModel) {
-            icon = '📦';
-            label = '3D Model';
-          } else {
-            const el = elements.find((e) => e.id === item.id);
-            icon = el ? elementIcon(el) : '?';
-            label = el ? elementLabel(el) : 'Unknown';
-          }
-
-          const handleSelect = () => {
-            setSelectedId(isModel ? '__model3d__' : item.id);
-          };
-
-          return (
-            <div key={item.id}>
-              {/* Drop indicator above this item */}
-              {dropIndex === idx && (
-                <div className="mx-2 h-0.5 rounded-full bg-indigo-500 my-0.5 pointer-events-none" />
-              )}
-
-              <div
-                draggable
-                onDragStart={(e) => handleDragStart(item.id, e)}
-                onDragOver={(e) => handleDragOver(idx, e)}
-                onDragEnd={handleDragEnd}
-                onClick={handleSelect}
-                className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-grab active:cursor-grabbing transition-colors group select-none ${
-                  isBeingDragged
-                    ? 'opacity-40'
-                    : isSelected
-                    ? 'bg-indigo-600/30 border border-indigo-500/50'
-                    : 'hover:bg-[#1e1e1e] border border-transparent'
-                }`}
-              >
-                {/* Drag handle */}
-                <span className="text-gray-600 text-[10px] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity w-3">
-                  ⠿
-                </span>
-                <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
-                  {icon}
-                </span>
-                <span className={`flex-1 text-xs truncate ${isSelected ? 'text-white' : 'text-gray-400'}`}>
-                  {label}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Drop indicator at the very bottom (after all items) */}
-        {dropIndex === allSorted.length && (
-          <div className="mx-2 h-0.5 rounded-full bg-indigo-500 my-0.5 pointer-events-none" />
-        )}
-
-        {/* Background — always fixed at the bottom, not draggable */}
-        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-transparent opacity-40 cursor-default mt-0.5">
-          <span className="w-3 flex-shrink-0" />
-          <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
-            ▬
-          </span>
-          <span className="flex-1 text-xs text-gray-500 truncate">Background</span>
-          <span className="text-[9px] text-gray-600">locked</span>
-        </div>
-      </div>
-
-      {allSorted.length === 0 && (
-        <p className="text-center text-gray-600 text-xs mt-6 px-2">
-          Add elements or a 3D model to see layers here.
+      {allSorted.length === 0 ? (
+        <p className="text-center text-gray-600 text-xs mt-6 px-2 leading-relaxed">
+          Click <span className="text-gray-400">+</span> above to add your first layer.
         </p>
+      ) : (
+        <div className="space-y-0">
+          {allSorted.map((item, idx) => {
+            const isModel = item.kind === 'model3d';
+            const isBeingDragged = draggedId === item.id;
+            const isSelected = isModel ? selectedId === '__model3d__' : selectedId === item.id;
+            const el = isModel ? null : elements.find((e) => e.id === item.id);
+            const icon = isModel ? '📦' : (el ? elementIcon(el) : '?');
+            const label = isModel ? '3D Model' : (el ? elementLabel(el) : 'Unknown');
+
+            return (
+              <div key={item.id}>
+                {dropIndex === idx && (
+                  <div className="mx-2 h-0.5 rounded-full bg-indigo-500 my-0.5 pointer-events-none" />
+                )}
+                <div
+                  draggable
+                  onDragStart={(e) => handleDragStart(item.id, e)}
+                  onDragOver={(e) => handleDragOver(idx, e)}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => setSelectedId(isModel ? '__model3d__' : item.id)}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-grab active:cursor-grabbing transition-colors group select-none ${
+                    isBeingDragged
+                      ? 'opacity-40'
+                      : isSelected
+                      ? 'bg-indigo-600/30 border border-indigo-500/50'
+                      : 'hover:bg-[#1e1e1e] border border-transparent'
+                  }`}
+                >
+                  <span className="text-gray-600 text-[10px] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity w-3">
+                    ⠿
+                  </span>
+                  <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+                    {icon}
+                  </span>
+                  <span className={`flex-1 text-xs truncate ${isSelected ? 'text-white' : 'text-gray-400'}`}>
+                    {label}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isModel) {
+                        setModel3d({ ...model3d, assetId: null, src: null });
+                      } else {
+                        removeElement(item.id);
+                      }
+                    }}
+                    title="Delete layer"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 w-4 h-4 flex items-center justify-center rounded hover:bg-red-500/20 text-gray-600 hover:text-red-400 flex-shrink-0 text-[10px]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {dropIndex === allSorted.length && (
+            <div className="mx-2 h-0.5 rounded-full bg-indigo-500 my-0.5 pointer-events-none" />
+          )}
+
+          {/* Background — always fixed at bottom, not draggable */}
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-transparent opacity-40 cursor-default mt-0.5">
+            <span className="w-3 flex-shrink-0" />
+            <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+              ▬
+            </span>
+            <span className="flex-1 text-xs text-gray-500 truncate">Background</span>
+            <span className="text-[9px] text-gray-600">locked</span>
+          </div>
+        </div>
       )}
     </div>
   );
