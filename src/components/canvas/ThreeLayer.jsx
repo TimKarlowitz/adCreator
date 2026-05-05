@@ -83,21 +83,20 @@ function RotatingModel({
   const { viewport, camera } = useThree();
   const axisVec = useRef(new THREE.Vector3(0, 1, 0));
   const modelRadiusRef = useRef(1);
+  // Camera z when model was first loaded at scale=1 — gives the baseline framing.
+  const baseCameraZRef = useRef(5);
 
-  // Recompute camera clipping planes whenever scale changes so rotating
-  // parts of large models never get culled by the near or far plane.
+  // Recompute camera clipping planes whenever scale changes.
+  // The camera is only moved back if it would end up INSIDE the model; otherwise
+  // it stays at baseCameraZRef so the model visually grows as scale increases.
   useEffect(() => {
     const effectiveRadius = modelRadiusRef.current * (typeof scale === 'number' ? scale : 1);
     if (effectiveRadius <= 0) return;
 
-    // Pull the camera back far enough that the entire model stays in front of it
-    const requiredDist = effectiveRadius * 2.5;
-    if (camera.position.z < requiredDist) {
-      camera.position.z = requiredDist;
-    }
+    // Give just enough clearance so the camera isn't inside the model.
+    const minRequired = effectiveRadius * 1.1;
+    camera.position.z = Math.max(baseCameraZRef.current, minRequired);
 
-    // Keep near very small so no part of the model ever clips against the front plane.
-    // Only expand far to accommodate the model's full depth from the camera.
     camera.near = 0.001;
     camera.far = Math.max(10000, camera.position.z + effectiveRadius * 3);
     camera.updateProjectionMatrix();
@@ -140,13 +139,15 @@ function RotatingModel({
         box.getBoundingSphere(sphere);
         modelRadiusRef.current = sphere.radius;
 
+        // Position the camera to comfortably frame the model at its current scale,
+        // then record that distance as the baseline so scale changes don't push
+        // the camera back proportionally (which would freeze the apparent size).
         const effectiveRadius = sphere.radius * (typeof scale === 'number' ? scale : 1);
-        const requiredDist = effectiveRadius * 2.5;
-        if (camera.position.z < requiredDist) {
-          camera.position.z = requiredDist;
-        }
+        const idealDist = Math.max(5, effectiveRadius * 2.5);
+        camera.position.z = idealDist;
+        baseCameraZRef.current = idealDist;
         camera.near = 0.001;
-        camera.far = Math.max(10000, camera.position.z + effectiveRadius * 3);
+        camera.far = Math.max(10000, idealDist + effectiveRadius * 3);
         camera.updateProjectionMatrix();
       }, undefined, (err) => {
         console.warn('GLTF load error:', err);
