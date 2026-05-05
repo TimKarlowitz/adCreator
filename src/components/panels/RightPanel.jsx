@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import FontPickerModal from '@/components/modals/FontPickerModal';
+import RichTextEditor from '@/components/elements/RichTextEditor';
 
 export default function RightPanel() {
-  const { elements, selectedId, updateElement, model3d, updateModel3d } = useProjectStore();
+  const { elements, selectedId, updateElement, model3d, updateModel3d, exportConfig } = useProjectStore();
   const [showFontPicker, setShowFontPicker] = useState(false);
 
   const selected = elements.find((e) => e.id === selectedId);
@@ -13,7 +14,7 @@ export default function RightPanel() {
   if (!selectedId || selectedId === '__model3d__') {
     return (
       <aside className="w-64 bg-[#111] border-l border-[#2a2a2a] flex flex-col">
-        <Model3dPanel model={model3d} onUpdate={updateModel3d} />
+        <Model3dPanel model={model3d} onUpdate={updateModel3d} exportConfig={exportConfig} />
       </aside>
     );
   }
@@ -26,7 +27,11 @@ export default function RightPanel() {
         <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
           {selected.type.toUpperCase()} ELEMENT
         </p>
-        <p className="text-xs text-gray-400 truncate">{selected.content || selected.variant || selected.type}</p>
+        <p className="text-xs text-gray-400 truncate">
+          {selected.richContent?.length
+            ? selected.richContent.map((s) => s.text).join('')
+            : selected.content || selected.variant || selected.type}
+        </p>
       </div>
 
       {/* Position & Size */}
@@ -147,14 +152,23 @@ export default function RightPanel() {
         </Section>
       )}
 
-      {/* Content editor */}
+      {/* Rich text content editor */}
       {(selected.type === 'text' || selected.type === 'textbox') && (
         <Section title="Content">
-          <textarea
-            value={selected.content || ''}
-            onChange={(e) => updateElement(selectedId, { content: e.target.value })}
-            rows={4}
-            className="w-full bg-[#1a1a1a] border border-[#333] rounded px-2 py-1.5 text-sm text-gray-300 resize-none focus:outline-none focus:border-indigo-500"
+          <RichTextEditor
+            key={selectedId}
+            richContent={
+              selected.richContent?.length
+                ? selected.richContent
+                : selected.content
+                ? [{ text: selected.content }]
+                : []
+            }
+            defaultStyle={selected.style}
+            onChange={(segs) => {
+              const plain = segs.map((s) => s.text).join('');
+              updateElement(selectedId, { richContent: segs, content: plain });
+            }}
           />
         </Section>
       )}
@@ -268,9 +282,11 @@ function AnimationPanel({ animation = {}, onChange }) {
   );
 }
 
-function Model3dPanel({ model, onUpdate }) {
+function Model3dPanel({ model, onUpdate, exportConfig = {} }) {
   const updateLights = (patch) => onUpdate({ lights: { ...model.lights, ...patch } });
   const lights = model.lights || {};
+  const gifDuration = exportConfig.duration ?? 4;
+  const syncedSpeed = (2 * Math.PI * (model.rotationLoops ?? 1)) / Math.max(0.01, gifDuration);
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -309,8 +325,44 @@ function Model3dPanel({ model, onUpdate }) {
                 {model.autoRotate ? 'On' : 'Off'}
               </button>
             </div>
-            <SliderRow label="Speed" min={0} max={5} step={0.1} value={model.rotationSpeed}
-              onChange={(v) => onUpdate({ rotationSpeed: v })} fmt={(v) => v.toFixed(1)} />
+            {/* Sync to GIF toggle */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500 w-20">Sync to GIF</label>
+              <button
+                onClick={() => onUpdate({ syncRotationToGif: !model.syncRotationToGif })}
+                className={`px-3 py-1 rounded text-xs transition-colors ${model.syncRotationToGif ? 'bg-indigo-600 text-white' : 'bg-[#1a1a1a] text-gray-400 border border-[#333]'}`}
+              >
+                {model.syncRotationToGif ? 'On' : 'Off'}
+              </button>
+            </div>
+
+            {model.syncRotationToGif ? (
+              <>
+                {/* Number of full rotations per GIF loop */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500 w-20">Loops</label>
+                  <input
+                    type="number"
+                    min={0.25}
+                    max={20}
+                    step={0.25}
+                    value={model.rotationLoops ?? 1}
+                    onChange={(e) => onUpdate({ rotationLoops: Number(e.target.value) })}
+                    className="w-16 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1 text-xs text-gray-300 focus:outline-none"
+                  />
+                  <span className="text-xs text-gray-600">× per gif</span>
+                </div>
+                {/* Read-only computed speed */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500 w-20">Speed</label>
+                  <span className="text-xs text-indigo-400">{syncedSpeed.toFixed(3)} rad/s</span>
+                  <span className="text-xs text-gray-600">(auto)</span>
+                </div>
+              </>
+            ) : (
+              <SliderRow label="Speed" min={0} max={5} step={0.1} value={model.rotationSpeed}
+                onChange={(v) => onUpdate({ rotationSpeed: v })} fmt={(v) => v.toFixed(1)} />
+            )}
 
             {/* Rotation Axis */}
             <div className="pt-1">

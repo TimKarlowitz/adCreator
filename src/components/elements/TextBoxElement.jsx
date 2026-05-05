@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Group, Rect, Shape } from 'react-konva';
 import { getAnimationState } from '@/lib/animationUtils';
+import { drawTextContent } from '@/lib/richTextUtils';
 import { useProjectStore } from '@/store/projectStore';
 
 export default function TextBoxElement({
@@ -23,6 +24,7 @@ export default function TextBoxElement({
   const {
     x, y, width, height, rotation = 0,
     content = '',
+    richContent,
     style = {},
     animation,
   } = element;
@@ -118,18 +120,14 @@ export default function TextBoxElement({
         width={w}
         height={h}
         sceneFunc={(ctx) => {
-          ctx.save();
-          ctx.font = `${bold ? 'bold' : 'normal'} ${scaledFontSize}px "${fontFamily}"`;
-          ctx.fillStyle = color;
-          ctx.textBaseline = 'top';
-          const textX = align === 'center' ? w / 2 : align === 'right' ? w - pad : pad;
-          ctx.textAlign = align;
-
-          const lines = content.split('\n');
-          lines.forEach((line, i) => {
-            ctx.fillText(line, textX, pad + i * scaledFontSize * 1.35);
-          });
-          ctx.restore();
+          drawTextContent(
+            ctx,
+            { content, richContent },
+            { fontFamily, fontSize: scaledFontSize, color, bold, align },
+            w,
+            pad,
+            pad,
+          );
         }}
         hitFunc={(ctx, shape) => {
           ctx.beginPath();

@@ -382,20 +382,80 @@ function elementLabel(el) {
 function LayersPanel() {
   const {
     elements, model3d, selectedId,
-    setSelectedId, bringForward, sendBackward,
+    setSelectedId, reorderLayers,
   } = useProjectStore();
+
+  const [draggedId, setDraggedId] = useState(null);
+  // Index in allSorted before which the drop indicator line shows.
+  // null = no active drop target.
+  const [dropIndex, setDropIndex] = useState(null);
 
   // Unified sorted list — highest zIndex first (top of visual stack at top of list)
   const allSorted = getAllItemsSorted(elements, model3d).reverse();
 
+  const handleDragStart = (id, e) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    // Transparent drag ghost
+    const ghost = document.createElement('div');
+    ghost.style.position = 'fixed';
+    ghost.style.top = '-9999px';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => document.body.removeChild(ghost), 0);
+  };
+
+  const handleDragOver = (idx, e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isTopHalf = e.clientY < rect.top + rect.height / 2;
+    setDropIndex(isTopHalf ? idx : idx + 1);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    if (draggedId === null || dropIndex === null) return;
+
+    const currentIds = allSorted.map((item) => item.id);
+    const fromIdx = currentIds.indexOf(draggedId);
+    if (fromIdx === -1 || fromIdx === dropIndex || fromIdx + 1 === dropIndex) {
+      setDraggedId(null);
+      setDropIndex(null);
+      return;
+    }
+
+    const newOrder = [...currentIds];
+    newOrder.splice(fromIdx, 1);
+    // Adjust insertion index after removal
+    const insertAt = fromIdx < dropIndex ? dropIndex - 1 : dropIndex;
+    newOrder.splice(insertAt, 0, draggedId);
+
+    reorderLayers(newOrder);
+    setDraggedId(null);
+    setDropIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDropIndex(null);
+  };
+
   return (
-    <div>
+    <div
+      onDrop={handleDrop}
+      onDragOver={(e) => e.preventDefault()}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setDropIndex(null);
+      }}
+    >
       <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 px-1 pt-1">
         Stack order (top → bottom)
       </p>
-      <div className="space-y-0.5">
-        {allSorted.map((item) => {
+      <div className="space-y-0">
+        {allSorted.map((item, idx) => {
           const isModel = item.kind === 'model3d';
+          const isBeingDragged = draggedId === item.id;
           const isSelected = isModel
             ? selectedId === '__model3d__'
             : selectedId === item.id;
@@ -411,51 +471,53 @@ function LayersPanel() {
           }
 
           const handleSelect = () => {
-            if (isModel) {
-              setSelectedId('__model3d__');
-            } else {
-              setSelectedId(item.id);
-            }
+            setSelectedId(isModel ? '__model3d__' : item.id);
           };
 
           return (
-            <div
-              key={item.id}
-              onClick={handleSelect}
-              className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-pointer transition-colors group ${
-                isSelected
-                  ? 'bg-indigo-600/30 border border-indigo-500/50'
-                  : 'hover:bg-[#1e1e1e] border border-transparent'
-              }`}
-            >
-              <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
-                {icon}
-              </span>
-              <span className={`flex-1 text-xs truncate ${isSelected ? 'text-white' : 'text-gray-400'}`}>
-                {label}
-              </span>
-              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={(e) => { e.stopPropagation(); bringForward(item.id); }}
-                  className="w-5 h-5 rounded bg-[#333] hover:bg-indigo-600 text-gray-400 hover:text-white flex items-center justify-center text-[10px] transition-colors"
-                  title="Bring Forward"
-                >
-                  ↑
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); sendBackward(item.id); }}
-                  className="w-5 h-5 rounded bg-[#333] hover:bg-indigo-600 text-gray-400 hover:text-white flex items-center justify-center text-[10px] transition-colors"
-                  title="Send Backward"
-                >
-                  ↓
-                </button>
+            <div key={item.id}>
+              {/* Drop indicator above this item */}
+              {dropIndex === idx && (
+                <div className="mx-2 h-0.5 rounded-full bg-indigo-500 my-0.5 pointer-events-none" />
+              )}
+
+              <div
+                draggable
+                onDragStart={(e) => handleDragStart(item.id, e)}
+                onDragOver={(e) => handleDragOver(idx, e)}
+                onDragEnd={handleDragEnd}
+                onClick={handleSelect}
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-grab active:cursor-grabbing transition-colors group select-none ${
+                  isBeingDragged
+                    ? 'opacity-40'
+                    : isSelected
+                    ? 'bg-indigo-600/30 border border-indigo-500/50'
+                    : 'hover:bg-[#1e1e1e] border border-transparent'
+                }`}
+              >
+                {/* Drag handle */}
+                <span className="text-gray-600 text-[10px] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity w-3">
+                  ⠿
+                </span>
+                <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+                  {icon}
+                </span>
+                <span className={`flex-1 text-xs truncate ${isSelected ? 'text-white' : 'text-gray-400'}`}>
+                  {label}
+                </span>
               </div>
             </div>
           );
         })}
 
-        {/* Background — always fixed at the bottom */}
-        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-transparent opacity-40 cursor-default">
+        {/* Drop indicator at the very bottom (after all items) */}
+        {dropIndex === allSorted.length && (
+          <div className="mx-2 h-0.5 rounded-full bg-indigo-500 my-0.5 pointer-events-none" />
+        )}
+
+        {/* Background — always fixed at the bottom, not draggable */}
+        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-transparent opacity-40 cursor-default mt-0.5">
+          <span className="w-3 flex-shrink-0" />
           <span className="w-5 h-5 rounded bg-[#2a2a2a] flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
             ▬
           </span>

@@ -83,7 +83,7 @@ export default function ExportModal({ onClose, stageRef, bottomStageRef, threeCa
           <div>
             <label className="text-sm text-gray-400 block mb-2">Frame Rate</label>
             <div className="flex gap-2">
-              {[24, 30, 60].map((rate) => (
+              {[10, 15, 20, 24, 30].map((rate) => (
                 <button
                   key={rate}
                   onClick={() => setExportConfig({ fps: rate })}

@@ -35,6 +35,7 @@ function RotatingModel({
   src, position, scale, rotationSpeed, autoRotate,
   rotationAxisX = 0, rotationAxisY = 1, rotationAxisZ = 0,
   pivotX = 0, pivotY = 0, pivotZ = 0,
+  syncRotationToGif = false, rotationLoops = 1, gifDuration = 4,
 }) {
   const rotatingGroupRef = useRef();
   const modelGroupRef = useRef();
@@ -102,13 +103,17 @@ function RotatingModel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
+  const effectiveSpeed = syncRotationToGif
+    ? (2 * Math.PI * rotationLoops) / Math.max(0.01, gifDuration)
+    : rotationSpeed;
+
   useFrame((_, delta) => {
     if (rotatingGroupRef.current && autoRotate) {
       axisVec.current.set(rotationAxisX, rotationAxisY, rotationAxisZ);
       const len = axisVec.current.length();
       if (len > 0) {
         axisVec.current.divideScalar(len);
-        rotatingGroupRef.current.rotateOnAxis(axisVec.current, rotationSpeed * delta);
+        rotatingGroupRef.current.rotateOnAxis(axisVec.current, effectiveSpeed * delta);
       }
     }
   });
@@ -184,7 +189,7 @@ function SceneLights({ lights = {} }) {
 }
 
 export default function ThreeLayer({ displayWidth, displayHeight }) {
-  const { background, model3d } = useProjectStore();
+  const { background, model3d, exportConfig } = useProjectStore();
   const { blobUrls } = useAssetStore();
 
   const bgSrc = background.src || (background.assetId ? blobUrls[background.assetId] : null);
@@ -218,6 +223,9 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
             pivotX={model3d.pivotX ?? 0}
             pivotY={model3d.pivotY ?? 0}
             pivotZ={model3d.pivotZ ?? 0}
+            syncRotationToGif={model3d.syncRotationToGif ?? false}
+            rotationLoops={model3d.rotationLoops ?? 1}
+            gifDuration={exportConfig.duration ?? 4}
           />
         )}
       </Suspense>

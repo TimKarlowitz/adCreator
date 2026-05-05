@@ -31,6 +31,8 @@ const defaultProject = () => ({
     scale: 1.2,
     rotationSpeed: 0.8,
     autoRotate: true,
+    syncRotationToGif: false,
+    rotationLoops: 1,
     rotationAxisX: 0,
     rotationAxisY: 1,
     rotationAxisZ: 0,
@@ -209,6 +211,27 @@ export const useProjectStore = create((set, get) => ({
         : idB === '__model3d__'
         ? { ...cur.model3d, zIndex: zA }
         : cur.model3d,
+    }));
+  },
+
+  /**
+   * Reorder all layers at once.
+   * orderedIds: array of item IDs from TOP (front) to BOTTOM (back) of the visual stack.
+   * Reassigns contiguous zIndices so the first ID gets the highest value.
+   */
+  reorderLayers: (orderedIds) => {
+    const s = get();
+    s._record();
+    const n = orderedIds.length;
+    set((cur) => ({
+      elements: cur.elements.map((el) => {
+        const pos = orderedIds.indexOf(el.id);
+        return pos === -1 ? el : { ...el, zIndex: n - 1 - pos };
+      }),
+      model3d: (() => {
+        const pos = orderedIds.indexOf('__model3d__');
+        return pos === -1 ? cur.model3d : { ...cur.model3d, zIndex: n - 1 - pos };
+      })(),
     }));
   },
 
