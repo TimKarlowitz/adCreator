@@ -6,6 +6,7 @@ import { Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { useProjectStore } from '@/store/projectStore';
 import { useAssetStore } from '@/store/assetStore';
+import { exportFrameControl } from '@/lib/exportFrameControl';
 
 function applyTextureCover(texture, viewportAR) {
   const imageAR = texture.image.width / texture.image.height;
@@ -166,7 +167,16 @@ function RotatingModel({
       const len = axisVec.current.length();
       if (len > 0) {
         axisVec.current.divideScalar(len);
-        rotatingGroupRef.current.rotateOnAxis(axisVec.current, effectiveSpeed * delta);
+        if (exportFrameControl.active) {
+          // Deterministic export mode: pin the mesh to an exact absolute angle
+          // so every captured frame is frame-perfect regardless of CPU timing.
+          rotatingGroupRef.current.setRotationFromAxisAngle(
+            axisVec.current,
+            exportFrameControl.angle,
+          );
+        } else {
+          rotatingGroupRef.current.rotateOnAxis(axisVec.current, effectiveSpeed * delta);
+        }
       }
     }
   });
