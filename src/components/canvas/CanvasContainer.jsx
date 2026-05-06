@@ -47,6 +47,7 @@ export default function CanvasContainer({ stageRef, bottomStageRef }) {
 
       {/* Three.js layer — 3D model and background image, no pointer events */}
       <div
+        data-layer="three"
         style={{
           position: 'absolute',
           inset: 0,

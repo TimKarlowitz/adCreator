@@ -88,7 +88,7 @@ export function useExport() {
     try {
       const ffmpeg = await getFFmpeg();
 
-      const threeCanvas = threeCanvasRef?.current?.querySelector('canvas');
+      const threeCanvas = threeCanvasRef?.current?.querySelector('[data-layer="three"] canvas');
       const topKonvaStage = stageRef?.current;
       const bottomKonvaStage = bottomStageRef?.current;
 
