@@ -5,6 +5,7 @@ import { Group, Rect, Shape } from 'react-konva';
 import { getAnimationState } from '@/lib/animationUtils';
 import { drawTextContent } from '@/lib/richTextUtils';
 import { useProjectStore } from '@/store/projectStore';
+import { loadGoogleFont } from '@/hooks/useFontLoader';
 
 export default function TextBoxElement({
   element,
@@ -35,6 +36,7 @@ export default function TextBoxElement({
     color = '#ffffff',
     bold = false,
     align = 'left',
+    verticalAlign = 'top',
     borderColor = '#ffffff',
     borderWidth = 2,
     padding = 12,
@@ -47,6 +49,13 @@ export default function TextBoxElement({
   const w = width * scale;
   const h = height * scale;
   const pad = padding * scale;
+
+  // Ensure the font is loaded before Konva renders the canvas text
+  useEffect(() => {
+    loadGoogleFont(fontFamily).then(() => {
+      nodeRef.current?.getLayer()?.batchDraw();
+    });
+  }, [fontFamily]);
 
   useEffect(() => {
     if (editing && textareaRef.current) {
@@ -123,10 +132,11 @@ export default function TextBoxElement({
           drawTextContent(
             ctx,
             { content, richContent },
-            { fontFamily, fontSize: scaledFontSize, color, bold, align },
+            { fontFamily, fontSize: scaledFontSize, color, bold, align, verticalAlign },
             w,
             pad,
             pad,
+            h,
           );
         }}
         hitFunc={(ctx, shape) => {

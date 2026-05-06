@@ -6,6 +6,7 @@ import { getAnimationState } from '@/lib/animationUtils';
 import { drawTextContent } from '@/lib/richTextUtils';
 import { richContentToHtml, parseEditorToRichContent, ColorPicker } from '@/components/elements/RichTextEditor';
 import { useProjectStore } from '@/store/projectStore';
+import { loadGoogleFont } from '@/hooks/useFontLoader';
 
 export default function TextElement({
   element,
@@ -38,10 +39,18 @@ export default function TextElement({
     color = '#ffffff',
     bold = false,
     align = 'left',
+    verticalAlign = 'top',
   } = style;
 
   const animState = getAnimationState(animation, 0);
   const scaledFontSize = fontSize * scale;
+
+  // Ensure the font is loaded before Konva renders the canvas text
+  useEffect(() => {
+    loadGoogleFont(fontFamily).then(() => {
+      nodeRef.current?.getLayer()?.batchDraw();
+    });
+  }, [fontFamily]);
 
   // ── Inline editing ──────────────────────────────────────────────────────
 
@@ -212,8 +221,8 @@ export default function TextElement({
             drawTextContent(
               ctx,
               { content, richContent },
-              { fontFamily, fontSize: scaledFontSize, color, bold, align },
-              w, 0, 0,
+              { fontFamily, fontSize: scaledFontSize, color, bold, align, verticalAlign },
+              w, 0, 0, h,
             );
             ctx.restore();
             shape.fill('rgba(0,0,0,0)');

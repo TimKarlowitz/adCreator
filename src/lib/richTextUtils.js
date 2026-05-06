@@ -38,22 +38,40 @@ export function buildRichLines(richContent) {
  *   color: string,
  *   bold: boolean,
  *   align: 'left'|'center'|'right',
+ *   verticalAlign: 'top'|'center'|'bottom',
  * }} defaults
  * @param {number} canvasWidth   – width in canvas pixels
  * @param {number} padX          – horizontal padding (canvas pixels)
  * @param {number} padY          – vertical padding (canvas pixels)
+ * @param {number} canvasHeight  – height in canvas pixels (required for vertical alignment)
  */
-export function drawTextContent(ctx, textData, defaults, canvasWidth, padX = 0, padY = 0) {
+export function drawTextContent(ctx, textData, defaults, canvasWidth, padX = 0, padY = 0, canvasHeight = 0) {
   const {
     fontFamily = 'Geist',
     fontSize,
     color = '#ffffff',
     bold = false,
     align = 'left',
+    verticalAlign = 'top',
   } = defaults;
 
   const { content = '', richContent } = textData;
   const lineH = fontSize * 1.3;
+
+  // Compute starting Y for vertical alignment
+  const numLines = richContent?.length
+    ? buildRichLines(richContent).length
+    : content.split('\n').length;
+  const totalTextH = numLines * lineH;
+
+  let startY = padY;
+  if (canvasHeight > 0 && verticalAlign !== 'top') {
+    if (verticalAlign === 'center') {
+      startY = (canvasHeight - totalTextH) / 2;
+    } else if (verticalAlign === 'bottom') {
+      startY = canvasHeight - padY - totalTextH;
+    }
+  }
 
   ctx.save();
   ctx.textBaseline = 'top';
@@ -68,14 +86,14 @@ export function drawTextContent(ctx, textData, defaults, canvasWidth, padX = 0, 
       : align === 'right' ? canvasWidth - padX
       : padX;
     content.split('\n').forEach((line, i) => {
-      ctx.fillText(line, xPos, padY + i * lineH);
+      ctx.fillText(line, xPos, startY + i * lineH);
     });
   } else {
     // ── Rich content ──────────────────────────────────────────────────────
     const lines = buildRichLines(richContent);
 
     lines.forEach((lineSegs, lineIdx) => {
-      const y = padY + lineIdx * lineH;
+      const y = startY + lineIdx * lineH;
 
       // Measure total line width for alignment
       let lineWidth = 0;

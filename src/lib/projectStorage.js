@@ -27,7 +27,7 @@ export function extractProjectData(state) {
     canvasConfig: state.canvasConfig,
     background: stripBlobSrc(state.background),
     model3d: stripBlobSrc(state.model3d),
-    elements: state.elements,
+    elements: state.elements.map((el) => stripBlobSrc(el)),
     exportConfig: state.exportConfig,
   };
 }

@@ -84,6 +84,19 @@ export default function RightPanel() {
                 </button>
               ))}
             </div>
+            <div className="flex gap-1">
+              {['top', 'center', 'bottom'].map((a) => (
+                <button
+                  key={a}
+                  onClick={() => updateElement(selectedId, { style: { ...selected.style, verticalAlign: a } })}
+                  className={`flex-1 py-1 rounded text-xs transition-colors ${
+                    (selected.style?.verticalAlign ?? 'top') === a ? 'bg-indigo-600 text-white' : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#2a2a2a]'
+                  }`}
+                >
+                  {a[0].toUpperCase() + a.slice(1)}
+                </button>
+              ))}
+            </div>
             <div className="flex gap-2">
               <Toggle
                 label="Bold"
