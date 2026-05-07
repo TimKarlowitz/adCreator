@@ -39,6 +39,7 @@ const defaultProject = () => ({
     rotationAxisX: 0,
     rotationAxisY: 1,
     rotationAxisZ: 0,
+    rotationResetKey: 0,
     pivotX: 0,
     pivotY: 0,
     pivotZ: 0,
@@ -131,16 +132,21 @@ export const useProjectStore = create((set, get) => ({
     const s = get();
     const { baseWidth, baseHeight } = s.canvasConfig;
     const newDims = ASPECT_RATIOS[ratio];
+    if (newDims.width === baseWidth && newDims.height === baseHeight) return;
+
+    const scaleX = newDims.width / baseWidth;
     const scaleY = newDims.height / baseHeight;
 
     s._record();
     set({
       canvasConfig: { ...s.canvasConfig, aspectRatio: ratio, baseWidth: newDims.width, baseHeight: newDims.height },
-      elements: s.elements.map((el) => ({
-        ...el,
-        y: Math.min(el.y * scaleY, newDims.height - el.height),
-        height: el.height * scaleY,
-      })),
+      elements: s.elements.map((el) => {
+        const newW = el.width * scaleX;
+        const newH = el.height * scaleY;
+        const newX = Math.max(0, Math.min(el.x * scaleX, newDims.width - newW));
+        const newY = Math.max(0, Math.min(el.y * scaleY, newDims.height - newH));
+        return { ...el, x: newX, y: newY, width: newW, height: newH };
+      }),
     });
   },
 
@@ -199,21 +205,21 @@ export const useProjectStore = create((set, get) => ({
     const idx = all.findIndex((item) => item.id === id);
     if (idx >= all.length - 1) return;
     s._record();
-    const zA = all[idx].zIndex;
-    const zB = all[idx + 1].zIndex;
-    const idA = all[idx].id;
-    const idB = all[idx + 1].id;
+    // Normalize to contiguous distinct zIndices (0 = bottom) so the swap is
+    // always effective, even when two adjacent items share the same zIndex.
+    const compacted = all.map((item, i) => ({ ...item, zIndex: i }));
+    const tmp = compacted[idx].zIndex;
+    compacted[idx].zIndex = compacted[idx + 1].zIndex;
+    compacted[idx + 1].zIndex = tmp;
     set((cur) => ({
       elements: cur.elements.map((el) => {
-        if (el.id === idA) return { ...el, zIndex: zB };
-        if (el.id === idB) return { ...el, zIndex: zA };
-        return el;
+        const upd = compacted.find((c) => c.id === el.id);
+        return upd ? { ...el, zIndex: upd.zIndex } : el;
       }),
-      model3d: idA === '__model3d__'
-        ? { ...cur.model3d, zIndex: zB }
-        : idB === '__model3d__'
-        ? { ...cur.model3d, zIndex: zA }
-        : cur.model3d,
+      model3d: (() => {
+        const upd = compacted.find((c) => c.id === '__model3d__');
+        return upd ? { ...cur.model3d, zIndex: upd.zIndex } : cur.model3d;
+      })(),
     }));
   },
 
@@ -245,21 +251,21 @@ export const useProjectStore = create((set, get) => ({
     const idx = all.findIndex((item) => item.id === id);
     if (idx <= 0) return;
     s._record();
-    const zA = all[idx].zIndex;
-    const zB = all[idx - 1].zIndex;
-    const idA = all[idx].id;
-    const idB = all[idx - 1].id;
+    // Normalize to contiguous distinct zIndices (0 = bottom) so the swap is
+    // always effective, even when two adjacent items share the same zIndex.
+    const compacted = all.map((item, i) => ({ ...item, zIndex: i }));
+    const tmp = compacted[idx].zIndex;
+    compacted[idx].zIndex = compacted[idx - 1].zIndex;
+    compacted[idx - 1].zIndex = tmp;
     set((cur) => ({
       elements: cur.elements.map((el) => {
-        if (el.id === idA) return { ...el, zIndex: zB };
-        if (el.id === idB) return { ...el, zIndex: zA };
-        return el;
+        const upd = compacted.find((c) => c.id === el.id);
+        return upd ? { ...el, zIndex: upd.zIndex } : el;
       }),
-      model3d: idA === '__model3d__'
-        ? { ...cur.model3d, zIndex: zB }
-        : idB === '__model3d__'
-        ? { ...cur.model3d, zIndex: zA }
-        : cur.model3d,
+      model3d: (() => {
+        const upd = compacted.find((c) => c.id === '__model3d__');
+        return upd ? { ...cur.model3d, zIndex: upd.zIndex } : cur.model3d;
+      })(),
     }));
   },
 

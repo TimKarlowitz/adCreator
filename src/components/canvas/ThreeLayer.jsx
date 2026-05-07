@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, Suspense } from 'react';
+import { useRef, useEffect, useState, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
 import * as THREE from 'three';
@@ -25,17 +25,37 @@ function applyTextureCover(texture, viewportAR) {
   texture.needsUpdate = true;
 }
 
+/**
+ * Keeps scene.background = null so the WebGL canvas stays transparent where no
+ * geometry is drawn.  Any component (e.g. Environment preset) that accidentally
+ * sets scene.background would otherwise make the entire canvas opaque, hiding
+ * every element that lives in the bottom Konva stage below the Three.js layer.
+ */
+function SceneSetup() {
+  const { scene, gl } = useThree();
+  useEffect(() => {
+    scene.background = null;
+    gl.setClearColor(0x000000, 0);
+  });
+  return null;
+}
+
 function BackgroundImage({ src, scale = 1, offsetX = 0, offsetY = 0, opacity = 1 }) {
   const { viewport } = useThree();
   const meshRef = useRef();
   const textureRef = useRef(null);
   const viewportARRef = useRef(viewport.width / viewport.height);
+  // Hide the mesh until the texture has loaded; an untextured opaque plane
+  // would otherwise cover the entire WebGL canvas (solid white/black) and hide
+  // everything in the bottom Konva stage while the image is still loading.
+  const [textureReady, setTextureReady] = useState(false);
 
   useEffect(() => {
     viewportARRef.current = viewport.width / viewport.height;
   }, [viewport.width, viewport.height]);
 
   useEffect(() => {
+    setTextureReady(false);
     if (!src) return;
     const loader = new THREE.TextureLoader();
     loader.crossOrigin = 'anonymous';
@@ -47,6 +67,7 @@ function BackgroundImage({ src, scale = 1, offsetX = 0, offsetY = 0, opacity = 1
         meshRef.current.material.color.setScalar(opacity);
         meshRef.current.material.needsUpdate = true;
       }
+      setTextureReady(true);
     });
   }, [src]);
 
@@ -63,7 +84,7 @@ function BackgroundImage({ src, scale = 1, offsetX = 0, offsetY = 0, opacity = 1
   }, [scale, offsetX, offsetY, opacity, viewport.width, viewport.height]);
 
   return (
-    <mesh ref={meshRef} position={[0, 0, -0.01]} renderOrder={-1}>
+    <mesh ref={meshRef} position={[0, 0, -0.01]} renderOrder={-1} visible={textureReady}>
       <planeGeometry args={[viewport.width, viewport.height]} />
       {/* transparent={false} keeps this in the opaque render bucket so renderOrder={-1}
           guarantees it draws before ANY model mesh — transparent materials always
@@ -78,6 +99,7 @@ function RotatingModel({
   rotationAxisX = 0, rotationAxisY = 1, rotationAxisZ = 0,
   pivotX = 0, pivotY = 0, pivotZ = 0,
   syncRotationToGif = false, rotationLoops = 1, gifDuration = 4,
+  rotationResetKey = 0,
 }) {
   const rotatingGroupRef = useRef();
   const modelGroupRef = useRef();
@@ -157,6 +179,14 @@ function RotatingModel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
+  useEffect(() => {
+    if (rotatingGroupRef.current) {
+      rotatingGroupRef.current.rotation.set(0, 0, 0);
+    }
+  // rotationResetKey incrementing is the only trigger we need here
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rotationResetKey]);
+
   const effectiveSpeed = syncRotationToGif
     ? (2 * Math.PI * rotationLoops) / Math.max(0.01, gifDuration)
     : rotationSpeed;
@@ -209,7 +239,7 @@ function SceneLighting({ preset }) {
     warehouse: 'warehouse',
   };
   try {
-    return <Environment preset={presetMap[preset] || 'studio'} />;
+    return <Environment preset={presetMap[preset] || 'studio'} background={false} />;
   } catch {
     return null;
   }
@@ -268,6 +298,10 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
       onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
       camera={{ position: [0, 0, 5], fov: 50, near: 0.001, far: 10000 }}
     >
+      {/* Keep scene.background = null on every render so no preset/component can
+          accidentally make the WebGL canvas opaque and hide bottom-Konva elements. */}
+      <SceneSetup />
+
       <SceneLights lights={model3d.lights} />
 
       <Suspense fallback={null}>
@@ -299,6 +333,7 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
             syncRotationToGif={model3d.syncRotationToGif ?? false}
             rotationLoops={model3d.rotationLoops ?? 1}
             gifDuration={exportConfig.duration ?? 4}
+            rotationResetKey={model3d.rotationResetKey ?? 0}
           />
         )}
       </Suspense>

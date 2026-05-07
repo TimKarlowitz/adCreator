@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Image as KonvaImage, Group } from 'react-konva';
+import { Image as KonvaImage, Group, Rect } from 'react-konva';
 import { getAnimationState } from '@/lib/animationUtils';
 import { useAssetStore } from '@/store/assetStore';
 
@@ -21,6 +21,10 @@ export default function ImageElement({
   const [displayImg, setDisplayImg] = useState(null);
   const animState = getAnimationState(animation, 0);
   const tintColor = style?.tintColor;
+  const borderColor = style?.borderColor || '#ffffff';
+  const borderWidth = style?.borderWidth ?? 0;
+  const borderRadius = style?.borderRadius ?? 0;
+  const boxBackground = style?.boxBackground || null;
 
   useEffect(() => {
     let mounted = true;
@@ -80,6 +84,17 @@ export default function ImageElement({
           image={displayImg}
           width={width * scale}
           height={height * scale}
+        />
+      )}
+      {(borderWidth > 0 || boxBackground) && (
+        <Rect
+          width={width * scale}
+          height={height * scale}
+          fill={boxBackground || 'transparent'}
+          stroke={borderWidth > 0 ? borderColor : undefined}
+          strokeWidth={borderWidth > 0 ? borderWidth * scale : 0}
+          cornerRadius={borderRadius * scale}
+          listening={false}
         />
       )}
     </Group>

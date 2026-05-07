@@ -37,6 +37,7 @@ export default function TextBoxElement({
     bold = false,
     align = 'left',
     verticalAlign = 'top',
+    lineHeight = 1.3,
     borderColor = '#ffffff',
     borderWidth = 2,
     padding = 12,
@@ -132,7 +133,7 @@ export default function TextBoxElement({
           drawTextContent(
             ctx,
             { content, richContent },
-            { fontFamily, fontSize: scaledFontSize, color, bold, align, verticalAlign },
+            { fontFamily, fontSize: scaledFontSize, color, bold, align, verticalAlign, lineHeight },
             w,
             pad,
             pad,

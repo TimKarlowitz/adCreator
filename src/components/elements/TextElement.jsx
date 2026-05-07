@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Group, Shape } from 'react-konva';
+import { Group, Rect, Shape } from 'react-konva';
 import { getAnimationState } from '@/lib/animationUtils';
 import { drawTextContent } from '@/lib/richTextUtils';
 import { richContentToHtml, parseEditorToRichContent, ColorPicker } from '@/components/elements/RichTextEditor';
@@ -40,6 +40,8 @@ export default function TextElement({
     bold = false,
     align = 'left',
     verticalAlign = 'top',
+    lineHeight = 1.3,
+    background = null,
   } = style;
 
   const animState = getAnimationState(animation, 0);
@@ -190,6 +192,17 @@ export default function TextElement({
   return (
     <>
       <Group>
+        {background && (
+          <Rect
+            x={x * scale}
+            y={y * scale}
+            width={width * scale}
+            height={height * scale}
+            fill={background}
+            rotation={rotation}
+            listening={false}
+          />
+        )}
         <Shape
           id={id}
           ref={nodeRef}
@@ -211,7 +224,6 @@ export default function TextElement({
           sceneFunc={(ctx, shape) => {
             const w = width * scale;
             const h = height * scale;
-            ctx.clearRect(0, 0, w, h);
             ctx.save();
             if (animState.scaleX !== 1 || animState.scaleY !== 1) {
               ctx.translate(w / 2, h / 2);
@@ -221,7 +233,7 @@ export default function TextElement({
             drawTextContent(
               ctx,
               { content, richContent },
-              { fontFamily, fontSize: scaledFontSize, color, bold, align, verticalAlign },
+              { fontFamily, fontSize: scaledFontSize, color, bold, align, verticalAlign, lineHeight },
               w, 0, 0, h,
             );
             ctx.restore();

@@ -28,6 +28,27 @@ export default function LeftPanel() {
   const imageInputRef = useRef();
   const modelInputRef = useRef();
 
+  const [width, setWidth] = useState(224);
+  const dragStartX = useRef(null);
+  const dragStartWidth = useRef(null);
+
+  const handleResizeMouseDown = (e) => {
+    e.preventDefault();
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = width;
+
+    const onMouseMove = (e) => {
+      const delta = e.clientX - dragStartX.current;
+      setWidth(Math.max(160, Math.min(480, dragStartWidth.current + delta)));
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
   // 'none' | 'root' | 'arrows' | 'image' | '3d'
   const [addSection, setAddSection] = useState('none');
   const [showBgSection, setShowBgSection] = useState(false);
@@ -44,7 +65,7 @@ export default function LeftPanel() {
       type: 'text',
       x: 80, y: 120, width: 500, height: 100, zIndex: 0,
       content: 'Your Text Here',
-      style: { fontFamily: 'Geist', fontSize: 48, color: '#ffffff', bold: false, underline: false, align: 'left', spans: [] },
+      style: { fontFamily: 'Geist', fontSize: 48, color: '#ffffff', bold: false, underline: false, align: 'left', lineHeight: 1.3, spans: [] },
       animation: { type: 'none', startAt: 0, duration: 0.5 },
     });
     setAddSection('none');
@@ -56,7 +77,7 @@ export default function LeftPanel() {
       type: 'textbox',
       x: 80, y: 200, width: 400, height: 120, zIndex: 0,
       content: 'Text Box Content',
-      style: { fontFamily: 'Geist', fontSize: 20, color: '#ffffff', bold: false, align: 'left', borderColor: '#6366f1', borderWidth: 2, padding: 16, background: 'rgba(0,0,0,0.5)', borderRadius: 8 },
+      style: { fontFamily: 'Geist', fontSize: 20, color: '#ffffff', bold: false, align: 'left', lineHeight: 1.3, borderColor: '#6366f1', borderWidth: 2, padding: 16, background: 'rgba(0,0,0,0.5)', borderRadius: 8 },
       animation: { type: 'none', startAt: 0, duration: 0.5 },
     });
     setAddSection('none');
@@ -109,7 +130,10 @@ export default function LeftPanel() {
     setAddSection((prev) => (prev === section ? 'none' : section));
 
   return (
-    <aside className="w-56 bg-[#111] border-r border-[#2a2a2a] flex flex-col overflow-hidden">
+    <aside
+      className="bg-[#111] border-r border-[#2a2a2a] flex flex-col overflow-hidden relative flex-shrink-0"
+      style={{ width }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a2a2a]">
         <span className="text-[10px] text-gray-400 uppercase tracking-widest font-medium">Layers</span>
@@ -297,6 +321,15 @@ export default function LeftPanel() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Resize handle */}
+      <div
+        onMouseDown={handleResizeMouseDown}
+        title="Drag to resize panel"
+        className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize z-20 group"
+      >
+        <div className="absolute inset-y-0 right-0 w-1 bg-transparent group-hover:bg-indigo-500/60 transition-colors duration-150" />
       </div>
     </aside>
   );

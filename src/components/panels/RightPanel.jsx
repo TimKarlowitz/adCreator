@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import FontPickerModal from '@/components/modals/FontPickerModal';
 import RichTextEditor from '@/components/elements/RichTextEditor';
@@ -9,11 +9,46 @@ export default function RightPanel() {
   const { elements, selectedId, updateElement, model3d, updateModel3d, exportConfig } = useProjectStore();
   const [showFontPicker, setShowFontPicker] = useState(false);
 
+  const [width, setWidth] = useState(256);
+  const dragStartX = useRef(null);
+  const dragStartWidth = useRef(null);
+
+  const handleResizeMouseDown = (e) => {
+    e.preventDefault();
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = width;
+
+    const onMouseMove = (e) => {
+      const delta = e.clientX - dragStartX.current;
+      setWidth(Math.max(180, Math.min(520, dragStartWidth.current - delta)));
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const resizeHandle = (
+    <div
+      onMouseDown={handleResizeMouseDown}
+      title="Drag to resize panel"
+      className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-20 group"
+    >
+      <div className="absolute inset-y-0 left-0 w-1 bg-transparent group-hover:bg-indigo-500/60 transition-colors duration-150" />
+    </div>
+  );
+
   const selected = elements.find((e) => e.id === selectedId);
 
   if (!selectedId || selectedId === '__model3d__') {
     return (
-      <aside className="w-64 bg-[#111] border-l border-[#2a2a2a] flex flex-col">
+      <aside
+        className="bg-[#111] border-l border-[#2a2a2a] flex flex-col relative flex-shrink-0"
+        style={{ width }}
+      >
+        {resizeHandle}
         <Model3dPanel model={model3d} onUpdate={updateModel3d} exportConfig={exportConfig} />
       </aside>
     );
@@ -22,7 +57,11 @@ export default function RightPanel() {
   if (!selected) return null;
 
   return (
-    <aside className="w-64 bg-[#111] border-l border-[#2a2a2a] flex flex-col overflow-y-auto">
+    <aside
+      className="bg-[#111] border-l border-[#2a2a2a] flex flex-col overflow-y-auto relative flex-shrink-0"
+      style={{ width }}
+    >
+      {resizeHandle}
       <div className="p-3 border-b border-[#2a2a2a]">
         <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
           {selected.type.toUpperCase()} ELEMENT
@@ -61,6 +100,21 @@ export default function RightPanel() {
               value={selected.style?.fontSize || 24}
               onChange={(v) => updateElement(selectedId, { style: { ...selected.style, fontSize: v } })}
             />
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500 w-20 flex-shrink-0">Line Spacing</label>
+              <input
+                type="range"
+                min={0.8}
+                max={3}
+                step={0.05}
+                value={selected.style?.lineHeight ?? 1.3}
+                onChange={(e) => updateElement(selectedId, { style: { ...selected.style, lineHeight: Number(e.target.value) } })}
+                className="flex-1 min-w-0"
+              />
+              <span className="text-xs text-gray-400 w-8 text-right flex-shrink-0">
+                {(selected.style?.lineHeight ?? 1.3).toFixed(2)}
+              </span>
+            </div>
             <div className="flex gap-2 items-center">
               <label className="text-xs text-gray-500 w-16">Color</label>
               <input
@@ -109,6 +163,13 @@ export default function RightPanel() {
                 onChange={(v) => updateElement(selectedId, { style: { ...selected.style, underline: v } })}
               />
             </div>
+            {selected.type === 'text' && (
+              <BackgroundColorControl
+                value={selected.style?.background ?? null}
+                defaultColor="rgba(0,0,0,0.6)"
+                onChange={(v) => updateElement(selectedId, { style: { ...selected.style, background: v } })}
+              />
+            )}
           </div>
         </Section>
       )}
@@ -140,6 +201,11 @@ export default function RightPanel() {
               label="Radius"
               value={selected.style?.borderRadius || 4}
               onChange={(v) => updateElement(selectedId, { style: { ...selected.style, borderRadius: v } })}
+            />
+            <BackgroundColorControl
+              value={selected.style?.background ?? null}
+              defaultColor="rgba(0,0,0,0.5)"
+              onChange={(v) => updateElement(selectedId, { style: { ...selected.style, background: v } })}
             />
           </div>
         </Section>
@@ -179,6 +245,57 @@ export default function RightPanel() {
                 <span className="text-xs text-gray-400">{selected.style.tintColor}</span>
               </div>
             )}
+          </div>
+        </Section>
+      )}
+
+      {/* Image box style */}
+      {selected.type === 'image' && (
+        <Section title="Box Style">
+          <div className="space-y-2">
+            <div className="flex gap-2 items-center">
+              <label className="text-xs text-gray-500 w-20">Border</label>
+              <input
+                type="color"
+                value={selected.style?.borderColor || '#ffffff'}
+                onChange={(e) => updateElement(selectedId, { style: { ...selected.style, borderColor: e.target.value } })}
+                className="w-8 h-7 rounded cursor-pointer border border-[#333] bg-transparent"
+              />
+              <NumInput
+                label="Width"
+                value={selected.style?.borderWidth ?? 0}
+                onChange={(v) => updateElement(selectedId, { style: { ...selected.style, borderWidth: v } })}
+              />
+            </div>
+            <NumInput
+              label="Radius"
+              value={selected.style?.borderRadius ?? 0}
+              onChange={(v) => updateElement(selectedId, { style: { ...selected.style, borderRadius: v } })}
+            />
+            <div className="flex gap-2 items-center">
+              <label className="text-xs text-gray-500 w-20">Background</label>
+              <button
+                onClick={() => {
+                  const next = selected.style?.boxBackground ? null : 'rgba(0,0,0,0.4)';
+                  updateElement(selectedId, { style: { ...selected.style, boxBackground: next } });
+                }}
+                className={`px-3 py-1 rounded text-xs transition-colors border ${
+                  selected.style?.boxBackground
+                    ? 'bg-indigo-600 border-indigo-500 text-white'
+                    : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:bg-[#2a2a2a]'
+                }`}
+              >
+                {selected.style?.boxBackground ? 'On' : 'Off'}
+              </button>
+              {selected.style?.boxBackground && (
+                <input
+                  type="color"
+                  value={selected.style.boxBackground.startsWith('#') ? selected.style.boxBackground : '#000000'}
+                  onChange={(e) => updateElement(selectedId, { style: { ...selected.style, boxBackground: e.target.value } })}
+                  className="w-8 h-7 rounded cursor-pointer border border-[#333] bg-transparent"
+                />
+              )}
+            </div>
           </div>
         </Section>
       )}
@@ -243,6 +360,86 @@ export default function RightPanel() {
         />
       )}
     </aside>
+  );
+}
+
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  return {
+    r: parseInt(full.slice(0, 2), 16),
+    g: parseInt(full.slice(2, 4), 16),
+    b: parseInt(full.slice(4, 6), 16),
+  };
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+
+function parseBackground(bg) {
+  if (!bg) return { hex: '#000000', opacity: 0.5 };
+  const rgba = bg.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
+  if (rgba) {
+    return {
+      hex: rgbToHex(+rgba[1], +rgba[2], +rgba[3]),
+      opacity: rgba[4] !== undefined ? +rgba[4] : 1,
+    };
+  }
+  if (bg.startsWith('#')) return { hex: bg.slice(0, 7), opacity: 1 };
+  return { hex: '#000000', opacity: 0.5 };
+}
+
+function buildBackground(hex, opacity) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${opacity})`;
+}
+
+function BackgroundColorControl({ value, defaultColor, onChange }) {
+  const enabled = !!value;
+  const { hex, opacity } = parseBackground(value || defaultColor);
+
+  return (
+    <>
+      <div className="flex gap-2 items-center">
+        <label className="text-xs text-gray-500 w-20">Background</label>
+        <button
+          onClick={() => onChange(enabled ? null : defaultColor)}
+          className={`px-3 py-1 rounded text-xs transition-colors border ${
+            enabled
+              ? 'bg-indigo-600 border-indigo-500 text-white'
+              : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:bg-[#2a2a2a]'
+          }`}
+        >
+          {enabled ? 'On' : 'Off'}
+        </button>
+        {enabled && (
+          <input
+            type="color"
+            value={hex}
+            onChange={(e) => onChange(buildBackground(e.target.value, opacity))}
+            className="w-8 h-7 rounded cursor-pointer border border-[#333] bg-transparent"
+          />
+        )}
+      </div>
+      {enabled && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500 w-20">Opacity</label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={opacity}
+            onChange={(e) => onChange(buildBackground(hex, Number(e.target.value)))}
+            className="flex-1 min-w-0"
+          />
+          <span className="text-xs text-gray-400 w-8 text-right flex-shrink-0">
+            {Math.round(opacity * 100)}%
+          </span>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -429,6 +626,13 @@ function Model3dPanel({ model, onUpdate, exportConfig = {} }) {
                       {label}
                     </button>
                   ))}
+                  <button
+                    onClick={() => onUpdate({ rotationAxisX: 0, rotationAxisY: 1, rotationAxisZ: 0, rotationResetKey: (model.rotationResetKey ?? 0) + 1 })}
+                    title="Reset to default axis (0, 1, 0)"
+                    className="px-2 py-0.5 rounded text-[10px] bg-[#2a2a2a] text-gray-400 hover:bg-red-700 hover:text-white transition-colors"
+                  >
+                    ↺
+                  </button>
                 </div>
               </div>
               <SliderRow label="Axis X" min={-1} max={1} step={0.05} value={model.rotationAxisX ?? 0}

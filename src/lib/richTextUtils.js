@@ -39,6 +39,7 @@ export function buildRichLines(richContent) {
  *   bold: boolean,
  *   align: 'left'|'center'|'right',
  *   verticalAlign: 'top'|'center'|'bottom',
+ *   lineHeight: number,    // line-height multiplier (e.g. 1.3). Defaults to 1.3.
  * }} defaults
  * @param {number} canvasWidth   – width in canvas pixels
  * @param {number} padX          – horizontal padding (canvas pixels)
@@ -53,10 +54,11 @@ export function drawTextContent(ctx, textData, defaults, canvasWidth, padX = 0, 
     bold = false,
     align = 'left',
     verticalAlign = 'top',
+    lineHeight = 1.3,
   } = defaults;
 
   const { content = '', richContent } = textData;
-  const lineH = fontSize * 1.3;
+  const lineH = fontSize * lineHeight;
 
   // Compute starting Y for vertical alignment
   const numLines = richContent?.length
