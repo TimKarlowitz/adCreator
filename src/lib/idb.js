@@ -1,10 +1,11 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'ad-editor-assets';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const ASSETS_STORE = 'assets';
 const PROJECTS_STORE = 'projects';
 const META_STORE = 'meta';
+const AB_TESTS_STORE = 'abTests';
 
 let dbPromise = null;
 
@@ -23,6 +24,12 @@ function getDB() {
           }
           if (!db.objectStoreNames.contains(META_STORE)) {
             db.createObjectStore(META_STORE, { keyPath: 'key' });
+          }
+        }
+        if (oldVersion < 3) {
+          if (!db.objectStoreNames.contains(AB_TESTS_STORE)) {
+            const store = db.createObjectStore(AB_TESTS_STORE, { keyPath: 'id' });
+            store.createIndex('byProject', 'projectId', { unique: false });
           }
         }
       },
@@ -73,6 +80,29 @@ export async function deleteProjectRecord(id) {
 export async function listProjectRecords() {
   const db = await getDB();
   return db.getAll(PROJECTS_STORE);
+}
+
+// ---- AB Tests ----
+
+export async function saveABTestRecord(record) {
+  const db = await getDB();
+  await db.put(AB_TESTS_STORE, record);
+}
+
+export async function getABTestRecord(id) {
+  const db = await getDB();
+  return db.get(AB_TESTS_STORE, id);
+}
+
+export async function deleteABTestRecord(id) {
+  const db = await getDB();
+  await db.delete(AB_TESTS_STORE, id);
+}
+
+export async function listABTestsByProject(projectId) {
+  const db = await getDB();
+  const index = db.transaction(AB_TESTS_STORE).store.index('byProject');
+  return index.getAll(projectId);
 }
 
 // ---- Meta ----

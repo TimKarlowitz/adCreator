@@ -24,14 +24,18 @@ function SaveIndicator({ isSaving, lastSaved }) {
   return null;
 }
 
-export default function TopBar({ onExport, onTemplates, onProjects, onNewProject, isSaving, lastSaved }) {
+export default function TopBar({ onExport, onTemplates, onProjects, onNewProject, onGoHome, onABTest, isSaving, lastSaved }) {
   const { canvasConfig, setAspectRatio, undo, redo, _past, _future } = useProjectStore();
 
   return (
     <header className="flex items-center justify-between px-4 h-12 bg-[#111] border-b border-[#2a2a2a] flex-shrink-0">
-      {/* Logo */}
+      {/* Logo + Home */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
+        <button
+          onClick={onGoHome}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity group"
+          title="Back to Projects"
+        >
           <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="2" y="2" width="5" height="5" rx="1" fill="white" />
@@ -41,7 +45,7 @@ export default function TopBar({ onExport, onTemplates, onProjects, onNewProject
             </svg>
           </div>
           <span className="font-semibold text-white text-sm tracking-tight">AdCreator</span>
-        </div>
+        </button>
 
         {/* Undo/Redo */}
         <div className="flex gap-1 ml-2">
@@ -109,6 +113,17 @@ export default function TopBar({ onExport, onTemplates, onProjects, onNewProject
           className="px-3 py-1.5 rounded text-sm text-gray-300 hover:text-white hover:bg-[#2a2a2a] transition-colors"
         >
           Templates
+        </button>
+        <button
+          onClick={onABTest}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm text-gray-300 hover:text-indigo-300 hover:bg-indigo-950/40 transition-colors"
+          title="A/B Test — bulk variant export"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          A/B Test
         </button>
         <button
           onClick={onExport}

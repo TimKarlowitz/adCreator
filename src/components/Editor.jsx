@@ -5,7 +5,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAssetStore } from '@/store/assetStore';
 import { useAspectRatio } from '@/hooks/useAspectRatio';
 import { useAutoSave } from '@/hooks/useAutoSave';
-import { getLastOpenedId, getProject, setLastOpenedId } from '@/lib/projectStorage';
+import { setLastOpenedId } from '@/lib/projectStorage';
 import TopBar from '@/components/panels/TopBar';
 import BottomBar from '@/components/panels/BottomBar';
 import LeftPanel from '@/components/panels/LeftPanel';
@@ -14,14 +14,16 @@ import CanvasContainer from '@/components/canvas/CanvasContainer';
 import ExportModal from '@/components/modals/ExportModal';
 import TemplateModal from '@/components/modals/TemplateModal';
 import ProjectsModal from '@/components/modals/ProjectsModal';
+import ABTestModal from '@/components/abtest/ABTestModal';
 
-export default function Editor() {
+export default function Editor({ onGoHome, initialOpenABTest = false, onABTestClosed }) {
   const stageRef = useRef();
   const bottomStageRef = useRef();
   const threeCanvasRef = useRef();
   const [showExport, setShowExport] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
+  const [showABTest, setShowABTest] = useState(initialOpenABTest);
 
   const { loadAll } = useAssetStore();
   const { zoom, canvasConfig, undo, redo, loadProject, newProject } = useProjectStore();
@@ -43,19 +45,6 @@ export default function Editor() {
     loadAll();
   }, [loadAll]);
 
-  // Restore the last opened project from IndexedDB on startup
-  useEffect(() => {
-    async function restore() {
-      const lastId = await getLastOpenedId();
-      if (!lastId) return;
-      const project = await getProject(lastId);
-      if (project) {
-        loadProject(project);
-      }
-    }
-    restore();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -89,6 +78,8 @@ export default function Editor() {
         onTemplates={() => setShowTemplates(true)}
         onProjects={() => setShowProjects(true)}
         onNewProject={() => { newProject(); }}
+        onGoHome={onGoHome}
+        onABTest={() => setShowABTest(true)}
         isSaving={isSaving}
         lastSaved={lastSaved}
       />
@@ -144,6 +135,15 @@ export default function Editor() {
           onClose={() => setShowProjects(false)}
           stageRef={stageRef}
           onImport={handleImport}
+        />
+      )}
+
+      {showABTest && (
+        <ABTestModal
+          onClose={() => { setShowABTest(false); onABTestClosed?.(); }}
+          stageRef={stageRef}
+          bottomStageRef={bottomStageRef}
+          threeCanvasRef={threeCanvasRef}
         />
       )}
     </div>
