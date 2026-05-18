@@ -306,7 +306,6 @@ export default function ABTestModal({ onClose, stageRef, bottomStageRef, threeCa
                 project={projectSnapshot()}
                 stageRef={stageRef}
                 bottomStageRef={bottomStageRef}
-                threeCanvasRef={threeCanvasRef}
                 excludedIds={excludedIds}
                 onUpdateExcludes={setExcludedIds}
               />
