@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Stage, Layer, Line } from 'react-konva';
+import { Stage, Layer, Line, Group, Rect, Transformer } from 'react-konva';
 import { useProjectStore } from '@/store/projectStore';
 import { useSnap } from '@/hooks/useSnap';
 import TextElement from '@/components/elements/TextElement';
@@ -28,6 +28,7 @@ export default function KonvaLayer({
   scale,
   elements: elementsProp,
   interactive = true,
+  hitOnlyIds = null,
 }) {
   const {
     elements: storeElements,
@@ -39,6 +40,8 @@ export default function KonvaLayer({
     duplicateElement,
     bringForward,
     sendBackward,
+    model3d,
+    updateModel3d,
   } = useProjectStore();
 
   const elements = elementsProp ?? storeElements;
@@ -49,6 +52,66 @@ export default function KonvaLayer({
 
   // Sort elements by zIndex
   const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
+
+  // ---- 3D Model overlay (drag + scale in canvas) ----
+  const model3dZIndex = model3d?.zIndex ?? -1;
+  const modelSrc = model3d?.assetId || model3d?.src;
+  const isModelSelected = selectedId === '__model3d__';
+
+  // Overlay size: fixed 10% of the shorter canvas edge — just large enough to click
+  // and drag comfortably without obscuring other elements or appearing as a big box
+  // around the model. Scale changes the 3D model but not this hit/drag handle size.
+  const overlayDisplaySize = Math.min(displayWidth, displayHeight) * 0.10;
+  const overlayX = (model3d?.position?.x ?? 0.5) * displayWidth - overlayDisplaySize / 2;
+  const overlayY = (model3d?.position?.y ?? 0.5) * displayHeight - overlayDisplaySize / 2;
+
+  const modelTransformerRef = useRef();
+
+  // Attach / detach the model transformer whenever selection changes
+  useEffect(() => {
+    if (!interactive || !modelTransformerRef.current || !stageRef?.current) return;
+    if (isModelSelected) {
+      const node = stageRef.current.findOne('#__model3d__');
+      if (node) {
+        modelTransformerRef.current.nodes([node]);
+        modelTransformerRef.current.getLayer().batchDraw();
+      }
+    } else {
+      modelTransformerRef.current.nodes([]);
+      modelTransformerRef.current.getLayer()?.batchDraw();
+    }
+  }, [isModelSelected, interactive, stageRef]);
+
+  const handleModelDragEnd = useCallback((e) => {
+    const newCenterX = e.target.x() + overlayDisplaySize / 2;
+    const newCenterY = e.target.y() + overlayDisplaySize / 2;
+    updateModel3d({
+      position: {
+        x: Math.max(0, Math.min(1, newCenterX / displayWidth)),
+        y: Math.max(0, Math.min(1, newCenterY / displayHeight)),
+      },
+    });
+  }, [overlayDisplaySize, displayWidth, displayHeight, updateModel3d]);
+
+  const handleModelTransformEnd = useCallback((e) => {
+    const node = e.target;
+    const sx = node.scaleX();
+    const sy = node.scaleY();
+    // Use average of X/Y scale since the 3D model uses uniform scale
+    const newScale = Math.max(0.1, (model3d?.scale ?? 1) * ((sx + sy) / 2));
+    const newCenterX = node.x() + overlayDisplaySize * sx / 2;
+    const newCenterY = node.y() + overlayDisplaySize * sy / 2;
+    // Reset Konva transform; the store drives the rect on next render
+    node.scaleX(1);
+    node.scaleY(1);
+    updateModel3d({
+      scale: newScale,
+      position: {
+        x: Math.max(0, Math.min(1, newCenterX / displayWidth)),
+        y: Math.max(0, Math.min(1, newCenterY / displayHeight)),
+      },
+    });
+  }, [overlayDisplaySize, displayWidth, displayHeight, model3d?.scale, updateModel3d]);
 
   // Delete / Backspace removes selected element (unless a text input has focus)
   useEffect(() => {
@@ -165,6 +228,24 @@ export default function KonvaLayer({
       onContextMenu: (e) => handleContextMenu(el.id, e),
     };
 
+    const isHitOnly = hitOnlyIds?.has(el.id) ?? false;
+
+    // Elements below the 3D model are rendered invisible here (their visual lives
+    // in the bottom stage) but Konva's hit canvas still detects clicks on
+    // opacity=0 groups, so drag and selection work for all elements regardless of
+    // layer order.
+    if (isHitOnly) {
+      let inner;
+      switch (el.type) {
+        case 'text':    inner = <TextElement {...props} />; break;
+        case 'textbox': inner = <TextBoxElement {...props} />; break;
+        case 'image':   inner = <ImageElement {...props} />; break;
+        case 'arrow':   inner = <ArrowElement {...props} />; break;
+        default:        return null;
+      }
+      return <Group key={el.id} opacity={0}>{inner}</Group>;
+    }
+
     switch (el.type) {
       case 'text':    return <TextElement key={el.id} {...props} />;
       case 'textbox': return <TextBoxElement key={el.id} {...props} />;
@@ -189,6 +270,22 @@ export default function KonvaLayer({
     );
   }
 
+  // Build an ordered render list that interleaves elements + the 3D model overlay
+  // at the correct z-index position so hit detection respects the layer stack.
+  const orderedRenderItems = (() => {
+    const items = [];
+    let modelInserted = false;
+    for (const el of sortedElements) {
+      if (!modelInserted && el.zIndex >= model3dZIndex) {
+        items.push({ kind: 'model' });
+        modelInserted = true;
+      }
+      items.push({ kind: 'element', el });
+    }
+    if (!modelInserted) items.push({ kind: 'model' });
+    return items;
+  })();
+
   return (
     <>
       <Stage
@@ -199,7 +296,31 @@ export default function KonvaLayer({
         onTap={handleStageClick}
       >
         <Layer>
-          {sortedElements.map(renderElement)}
+          {orderedRenderItems.map((item) => {
+            if (item.kind === 'model') {
+              if (!modelSrc) return null;
+              // Invisible rect that acts as the drag/scale handle for the 3D model.
+              // fill must have a tiny opacity so Konva's hit canvas detects clicks;
+              // fully transparent fills have no hit area in Konva.
+              return (
+                <Rect
+                  key="__model3d__"
+                  id="__model3d__"
+                  x={overlayX}
+                  y={overlayY}
+                  width={overlayDisplaySize}
+                  height={overlayDisplaySize}
+                  fill="rgba(255,255,255,0.001)"
+                  draggable
+                  onClick={() => setSelectedId('__model3d__')}
+                  onTap={() => setSelectedId('__model3d__')}
+                  onDragEnd={handleModelDragEnd}
+                  onTransformEnd={handleModelTransformEnd}
+                />
+              );
+            }
+            return renderElement(item.el);
+          })}
 
           {/* Snap guide lines */}
           {snapGuides.map((guide, i) =>
@@ -224,13 +345,30 @@ export default function KonvaLayer({
             )
           )}
 
-          {/* Selection transformer */}
+          {/* Transformer for regular elements */}
           {selectedId && selectedId !== '__model3d__' && (
             <SelectionTransformer
               stageRef={stageRef}
               selectedId={selectedId}
             />
           )}
+
+          {/* Dedicated transformer for the 3D model — rotation disabled since
+              the model has its own auto-rotate controls in the sidebar */}
+          <Transformer
+            ref={modelTransformerRef}
+            rotateEnabled={false}
+            keepRatio={true}
+            anchorStroke="#6366f1"
+            anchorFill="#fff"
+            anchorSize={8}
+            borderStroke="#6366f1"
+            borderDash={[4, 4]}
+            boundBoxFunc={(oldBox, newBox) => {
+              if (newBox.width < 20 || newBox.height < 20) return oldBox;
+              return newBox;
+            }}
+          />
         </Layer>
       </Stage>
 

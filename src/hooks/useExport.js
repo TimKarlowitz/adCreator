@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { getAnimationState } from '@/lib/animationUtils';
 import { useProjectStore } from '@/store/projectStore';
+import { useAssetStore } from '@/store/assetStore';
 import { exportFrameControl, waitForRender } from '@/lib/exportFrameControl';
 
 let ffmpegInstance = null;
@@ -23,17 +24,60 @@ async function getFFmpeg() {
 }
 
 /**
+ * Draw a background image onto a 2D canvas context with cover-fit + scale/offset/opacity,
+ * matching the CSS BackgroundImageLayer behavior in CanvasContainer.
+ */
+async function drawBackgroundImage(ctx, { src, scale = 1, offsetX = 0, offsetY = 0, opacity = 1 }, width, height) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const imgAR = img.width / img.height;
+      const canvasAR = width / height;
+
+      // Cover fit: expand to fill the canvas on the constraining axis
+      let drawW, drawH;
+      if (imgAR > canvasAR) {
+        drawH = height;
+        drawW = height * imgAR;
+      } else {
+        drawW = width;
+        drawH = width / imgAR;
+      }
+
+      // Apply scale (zooms from center)
+      drawW *= scale;
+      drawH *= scale;
+
+      // Center + offset (offsetX/Y are fractions of canvas size, Y axis flipped to match CSS)
+      const x = (width - drawW) / 2 + offsetX * width;
+      const y = (height - drawH) / 2 + (-offsetY) * height;
+
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.drawImage(img, x, y, drawW, drawH);
+      ctx.restore();
+      resolve();
+    };
+    img.onerror = resolve;
+    img.src = src;
+  });
+}
+
+/**
  * Composite one frame with correct z-order:
  *   1. background color (CSS)
- *   2. bottom Konva stage (elements below 3D model)
- *   3. Three.js canvas (background image + 3D model, transparent elsewhere)
- *   4. top Konva stage (elements above 3D model)
+ *   2. background image (CSS layer — now separate from Three.js)
+ *   3. bottom Konva stage (elements below 3D model)
+ *   4. Three.js canvas (3D model only, transparent elsewhere)
+ *   5. top Konva stage (elements above 3D model)
  */
 async function compositeFrame({
   threeCanvas,
   topKonvaStage,
   bottomKonvaStage,
   backgroundColor,
+  backgroundImage,
   width,
   height,
 }) {
@@ -44,18 +88,23 @@ async function compositeFrame({
   ctx.fillStyle = backgroundColor || '#000000';
   ctx.fillRect(0, 0, width, height);
 
-  // 2. Bottom Konva stage (elements below 3D model)
+  // 2. Background image (always below all elements, matching CSS layer order)
+  if (backgroundImage?.src) {
+    await drawBackgroundImage(ctx, backgroundImage, width, height);
+  }
+
+  // 3. Bottom Konva stage (elements below 3D model)
   if (bottomKonvaStage) {
     const bottomCanvas = bottomKonvaStage.toCanvas({ pixelRatio: width / bottomKonvaStage.width() });
     ctx.drawImage(bottomCanvas, 0, 0, width, height);
   }
 
-  // 3. Three.js WebGL frame (transparent background, draws bg image + 3D model)
+  // 4. Three.js WebGL frame (3D model only, transparent elsewhere)
   if (threeCanvas) {
     ctx.drawImage(threeCanvas, 0, 0, width, height);
   }
 
-  // 4. Top Konva stage (elements above 3D model)
+  // 5. Top Konva stage (elements above 3D model)
   if (topKonvaStage) {
     const topCanvas = topKonvaStage.toCanvas({ pixelRatio: width / topKonvaStage.width() });
     ctx.drawImage(topCanvas, 0, 0, width, height);
@@ -71,8 +120,10 @@ export function useExport() {
   const [error, setError] = useState(null);
   const abortRef = useRef(false);
 
-  // Read model3d at hook render time so exportVideo closes over the latest values.
+  // Read store state at hook render time so exportVideo closes over the latest values.
   const model3d = useProjectStore((state) => state.model3d);
+  const background = useProjectStore((state) => state.background);
+  const blobUrls = useAssetStore((state) => state.blobUrls);
 
   const exportVideo = async ({
     stageRef,
@@ -116,11 +167,23 @@ export function useExport() {
     try {
       const ffmpeg = await getFFmpeg();
 
-      const threeCanvas = threeCanvasRef?.current?.querySelector('[data-layer="three"] canvas');
-      const topKonvaStage = stageRef?.current;
-      const bottomKonvaStage = bottomStageRef?.current;
+    const threeCanvas = threeCanvasRef?.current?.querySelector('[data-layer="three"] canvas');
+    const topKonvaStage = stageRef?.current;
+    const bottomKonvaStage = bottomStageRef?.current;
 
-      if (!topKonvaStage) throw new Error('Konva stage not found');
+    if (!topKonvaStage) throw new Error('Konva stage not found');
+
+    // Resolve the background image src the same way CanvasContainer does.
+    const bgSrc = background?.type === 'image'
+      ? ((background.assetId ? blobUrls[background.assetId] : null) || background.src)
+      : null;
+    const backgroundImage = bgSrc ? {
+      src: bgSrc,
+      scale: background.scale ?? 1,
+      offsetX: background.offsetX ?? 0,
+      offsetY: background.offsetY ?? 0,
+      opacity: background.opacity ?? 1,
+    } : null;
 
       const exportWidth = 1080;
       const exportHeight = topKonvaStage.height() === topKonvaStage.width()
@@ -148,6 +211,7 @@ export function useExport() {
           topKonvaStage,
           bottomKonvaStage,
           backgroundColor,
+          backgroundImage,
           width: exportWidth,
           height: exportHeight,
         });

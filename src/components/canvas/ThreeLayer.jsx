@@ -1,29 +1,12 @@
 'use client';
 
-import { useRef, useEffect, useState, Suspense } from 'react';
+import { useRef, useEffect, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { useProjectStore } from '@/store/projectStore';
 import { useAssetStore } from '@/store/assetStore';
 import { exportFrameControl } from '@/lib/exportFrameControl';
-
-function applyTextureCover(texture, viewportAR) {
-  const imageAR = texture.image.width / texture.image.height;
-  let repeatX, repeatY;
-  if (imageAR > viewportAR) {
-    repeatX = viewportAR / imageAR;
-    repeatY = 1;
-  } else {
-    repeatX = 1;
-    repeatY = imageAR / viewportAR;
-  }
-  texture.wrapS = THREE.ClampToEdgeWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.repeat.set(repeatX, repeatY);
-  texture.offset.set((1 - repeatX) / 2, (1 - repeatY) / 2);
-  texture.needsUpdate = true;
-}
 
 /**
  * Keeps scene.background = null so the WebGL canvas stays transparent where no
@@ -40,59 +23,6 @@ function SceneSetup() {
   return null;
 }
 
-function BackgroundImage({ src, scale = 1, offsetX = 0, offsetY = 0, opacity = 1 }) {
-  const { viewport } = useThree();
-  const meshRef = useRef();
-  const textureRef = useRef(null);
-  const viewportARRef = useRef(viewport.width / viewport.height);
-  // Hide the mesh until the texture has loaded; an untextured opaque plane
-  // would otherwise cover the entire WebGL canvas (solid white/black) and hide
-  // everything in the bottom Konva stage while the image is still loading.
-  const [textureReady, setTextureReady] = useState(false);
-
-  useEffect(() => {
-    viewportARRef.current = viewport.width / viewport.height;
-  }, [viewport.width, viewport.height]);
-
-  useEffect(() => {
-    setTextureReady(false);
-    if (!src) return;
-    const loader = new THREE.TextureLoader();
-    loader.crossOrigin = 'anonymous';
-    loader.load(src, (texture) => {
-      applyTextureCover(texture, viewportARRef.current);
-      textureRef.current = texture;
-      if (meshRef.current) {
-        meshRef.current.material.map = texture;
-        meshRef.current.material.color.setScalar(opacity);
-        meshRef.current.material.needsUpdate = true;
-      }
-      setTextureReady(true);
-    });
-  }, [src]);
-
-  useEffect(() => {
-    if (!meshRef.current) return;
-    meshRef.current.scale.set(scale, scale, 1);
-    meshRef.current.position.set(
-      offsetX * viewport.width,
-      offsetY * viewport.height,
-      -0.01,
-    );
-    meshRef.current.material.color.setScalar(opacity);
-    meshRef.current.material.needsUpdate = true;
-  }, [scale, offsetX, offsetY, opacity, viewport.width, viewport.height]);
-
-  return (
-    <mesh ref={meshRef} position={[0, 0, -0.01]} renderOrder={-1} visible={textureReady}>
-      <planeGeometry args={[viewport.width, viewport.height]} />
-      {/* transparent={false} keeps this in the opaque render bucket so renderOrder={-1}
-          guarantees it draws before ANY model mesh — transparent materials always
-          render after opaque ones, making renderOrder ineffective for ordering against opaque model geometry. */}
-      <meshBasicMaterial depthWrite={false} />
-    </mesh>
-  );
-}
 
 function RotatingModel({
   src, position, scale, rotationSpeed, autoRotate,
@@ -282,13 +212,11 @@ function SceneLights({ lights = {} }) {
 }
 
 export default function ThreeLayer({ displayWidth, displayHeight }) {
-  const { background, model3d, exportConfig } = useProjectStore();
+  const { model3d, exportConfig } = useProjectStore();
   const { blobUrls } = useAssetStore();
 
   // Prefer fresh blob URL from assetStore (re-created from IndexedDB on each load)
-  // over background.src, which may be a stale blob URL from a previous session.
-  // Fall back to background.src for static/built-in assets that have no assetId.
-  const bgSrc = (background.assetId ? blobUrls[background.assetId] : null) || background.src;
+  // over model3d.src, which may be a stale blob URL from a previous session.
   const modelSrc = (model3d.assetId ? blobUrls[model3d.assetId] : null) || model3d.src;
 
   return (
@@ -306,16 +234,6 @@ export default function ThreeLayer({ displayWidth, displayHeight }) {
 
       <Suspense fallback={null}>
         <SceneLighting preset={model3d.lighting} />
-
-        {bgSrc && background.type === 'image' && (
-          <BackgroundImage
-            src={bgSrc}
-            scale={background.scale ?? 1}
-            offsetX={background.offsetX ?? 0}
-            offsetY={background.offsetY ?? 0}
-            opacity={background.opacity ?? 1}
-          />
-        )}
 
         {modelSrc && (
           <RotatingModel
